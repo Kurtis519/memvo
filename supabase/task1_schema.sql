@@ -1,0 +1,220 @@
+-- Memvo Task 1 Supabase schema scaffold
+-- Apply in the Supabase SQL editor after confirming project ownership and backup posture.
+
+create extension if not exists pgcrypto;
+
+create type public.memvo_plan as enum ('free', 'pro', 'admin');
+create type public.memvo_sync_status as enum ('pending', 'uploading', 'processing', 'complete', 'failed');
+create type public.memvo_referral_status as enum ('pending', 'qualified', 'rewarded');
+
+create table if not exists public.user_profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  email text unique,
+  full_name text,
+  avatar_url text,
+  plan public.memvo_plan not null default 'free',
+  is_admin boolean not null default false,
+  referral_code text unique,
+  referred_by_code text,
+  referral_bonus_minutes integer not null default 0,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.folders (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.user_profiles(id) on delete cascade,
+  name text not null,
+  slug text not null,
+  kind text not null default 'custom',
+  position integer not null default 0,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now()),
+  unique(user_id, slug)
+);
+
+create table if not exists public.notes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.user_profiles(id) on delete cascade,
+  folder_id uuid references public.folders(id) on delete set null,
+  title text not null default 'Untitled note',
+  transcript text,
+  summary text,
+  action_items jsonb not null default '[]'::jsonb,
+  tags jsonb not null default '[]'::jsonb,
+  audio_path text,
+  duration_seconds integer,
+  language_code text,
+  sync_status public.memvo_sync_status not null default 'pending',
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.sync_queue (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.user_profiles(id) on delete cascade,
+  note_id uuid references public.notes(id) on delete set null,
+  local_uri text not null,
+  status public.memvo_sync_status not null default 'pending',
+  retry_count integer not null default 0,
+  error_message text,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.referrals (
+  id uuid primary key default gen_random_uuid(),
+  referrer_user_id uuid not null references public.user_profiles(id) on delete cascade,
+  referred_user_id uuid references public.user_profiles(id) on delete set null,
+  referral_code text not null,
+  status public.memvo_referral_status not null default 'pending',
+  rewarded_minutes integer not null default 0,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = timezone('utc', now());
+  return new;
+end;
+$$;
+
+create or replace function public.handle_new_user_profile()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  configured_admin_email text := lower(coalesce(current_setting('app.settings.memvo_admin_email', true), ''));
+begin
+  insert into public.user_profiles (
+    id,
+    email,
+    full_name,
+    avatar_url,
+    referral_code,
+    is_admin,
+    plan
+  )
+  values (
+    new.id,
+    new.email,
+    coalesce(new.raw_user_meta_data ->> 'full_name', new.raw_user_meta_data ->> 'name'),
+    new.raw_user_meta_data ->> 'avatar_url',
+    encode(gen_random_bytes(6), 'hex'),
+    case when lower(coalesce(new.email, '')) = configured_admin_email then true else false end,
+    case when lower(coalesce(new.email, '')) = configured_admin_email then 'admin'::public.memvo_plan else 'free'::public.memvo_plan end
+  )
+  on conflict (id) do nothing;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created_memvo on auth.users;
+create trigger on_auth_user_created_memvo
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user_profile();
+
+create or replace function public.seed_default_folders()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.folders (user_id, name, slug, kind, position)
+  values
+    (new.id, 'All Notes', 'all-notes', 'system', 0),
+    (new.id, 'Starred', 'starred', 'system', 1),
+    (new.id, 'Meetings', 'meetings', 'system', 2),
+    (new.id, 'Ideas', 'ideas', 'system', 3),
+    (new.id, 'Journal', 'journal', 'system', 4)
+  on conflict do nothing;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_user_profile_created_seed_folders on public.user_profiles;
+create trigger on_user_profile_created_seed_folders
+  after insert on public.user_profiles
+  for each row execute procedure public.seed_default_folders();
+
+create trigger set_user_profiles_updated_at
+  before update on public.user_profiles
+  for each row execute procedure public.set_updated_at();
+create trigger set_folders_updated_at
+  before update on public.folders
+  for each row execute procedure public.set_updated_at();
+create trigger set_notes_updated_at
+  before update on public.notes
+  for each row execute procedure public.set_updated_at();
+create trigger set_sync_queue_updated_at
+  before update on public.sync_queue
+  for each row execute procedure public.set_updated_at();
+create trigger set_referrals_updated_at
+  before update on public.referrals
+  for each row execute procedure public.set_updated_at();
+
+alter table public.user_profiles enable row level security;
+alter table public.folders enable row level security;
+alter table public.notes enable row level security;
+alter table public.sync_queue enable row level security;
+alter table public.referrals enable row level security;
+
+create policy "profiles_select_own" on public.user_profiles
+for select using (auth.uid() = id or exists (
+  select 1 from public.user_profiles admin_profile
+  where admin_profile.id = auth.uid() and admin_profile.is_admin = true
+));
+
+create policy "profiles_update_own" on public.user_profiles
+for update using (auth.uid() = id)
+with check (auth.uid() = id);
+
+create policy "folders_manage_own" on public.folders
+for all using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+create policy "notes_manage_own" on public.notes
+for all using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+create policy "sync_queue_manage_own" on public.sync_queue
+for all using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+create policy "referrals_select_own_or_admin" on public.referrals
+for select using (
+  auth.uid() = referrer_user_id
+  or exists (
+    select 1 from public.user_profiles admin_profile
+    where admin_profile.id = auth.uid() and admin_profile.is_admin = true
+  )
+);
+
+create policy "referrals_insert_own" on public.referrals
+for insert with check (auth.uid() = referrer_user_id);
+
+create policy "referrals_admin_update" on public.referrals
+for update using (
+  exists (
+    select 1 from public.user_profiles admin_profile
+    where admin_profile.id = auth.uid() and admin_profile.is_admin = true
+  )
+)
+with check (
+  exists (
+    select 1 from public.user_profiles admin_profile
+    where admin_profile.id = auth.uid() and admin_profile.is_admin = true
+  )
+);
+
+comment on function public.handle_new_user_profile is 'Reads app.settings.memvo_admin_email to auto-assign the Memvo owner account admin access.';
+comment on table public.sync_queue is 'Tracks offline recordings that still need upload, transcription, or retry handling.';
