@@ -1,79 +1,115 @@
 export type MemvoPlan = 'free' | 'pro' | 'admin';
-
 export type MemvoFolderKind = 'system' | 'custom';
-export type MemvoSyncStatus = 'pending' | 'uploading' | 'processing' | 'complete' | 'failed';
+export type MemvoSyncStatus = 'pending' | 'uploading' | 'transcribing' | 'complete' | 'failed';
+export type MemvoFeature =
+  | 'record'
+  | 'offlinePlayback'
+  | 'serverTranscription'
+  | 'claudeSummary'
+  | 'priorityProcessing'
+  | 'manualProGrant'
+  | 'adminPanel'
+  | 'on-device transcription'
+  | 'claude summaries'
+  | 'manual pro grants'
+  | 'whisper transcription';
 
-export type MemvoUserProfile = {
+export interface MemvoUserProfile {
   id: string;
   email: string | null;
-  fullName: string | null;
-  avatarUrl: string | null;
   plan: MemvoPlan;
   isAdmin: boolean;
-  referralCode: string | null;
-  referredByCode: string | null;
-  referralBonusMinutes: number;
   createdAt: string;
   updatedAt: string;
-};
+}
 
-export type MemvoFolder = {
+export interface MemvoFolder {
   id: string;
   userId: string;
   name: string;
-  slug: string;
   kind: MemvoFolderKind;
-  position: number;
   createdAt: string;
   updatedAt: string;
-};
+}
 
-export type MemvoNote = {
+export interface MemvoNote {
   id: string;
-  userId: string;
+  userId: string | null;
   folderId: string | null;
   title: string;
+  createdAt: string;
+  updatedAt: string;
+  recordedAt: string;
+  audioPath: string;
+  durationSeconds: number;
+  syncStatus: MemvoSyncStatus;
   transcript: string | null;
   summary: string | null;
   actionItems: string[];
   tags: string[];
-  audioPath: string | null;
-  durationSeconds: number | null;
-  languageCode: string | null;
-  syncStatus: MemvoSyncStatus;
-  createdAt: string;
-  updatedAt: string;
-};
+  localOnly: boolean;
+}
 
-export type MemvoSyncQueueItem = {
+export interface MemvoSyncQueueItem {
   id: string;
-  userId: string;
-  noteId: string | null;
+  noteId: string;
   localUri: string;
   status: MemvoSyncStatus;
   retryCount: number;
   errorMessage: string | null;
+  remoteQueueId: string | null;
+  fileSizeBytes: number | null;
   createdAt: string;
   updatedAt: string;
-};
+  lastAttemptAt: string | null;
+}
 
-export type MemvoReferral = {
+export interface MemvoReferral {
   id: string;
   referrerUserId: string;
-  referredUserId: string | null;
-  referralCode: string;
-  status: 'pending' | 'qualified' | 'rewarded';
-  rewardedMinutes: number;
+  referredEmail: string;
+  status: 'pending' | 'accepted' | 'rewarded';
   createdAt: string;
   updatedAt: string;
+}
+
+export const MEMVO_PLAN_FEATURES: Record<MemvoPlan, MemvoFeature[]> = {
+  free: ['record', 'offlinePlayback', 'on-device transcription'],
+  pro: [
+    'record',
+    'offlinePlayback',
+    'serverTranscription',
+    'claudeSummary',
+    'priorityProcessing',
+    'on-device transcription',
+    'claude summaries',
+    'whisper transcription',
+  ],
+  admin: [
+    'record',
+    'offlinePlayback',
+    'serverTranscription',
+    'claudeSummary',
+    'priorityProcessing',
+    'manualProGrant',
+    'adminPanel',
+    'on-device transcription',
+    'claude summaries',
+    'manual pro grants',
+    'whisper transcription',
+  ],
 };
 
-export const MEMVO_PLAN_FEATURES: Record<MemvoPlan, string[]> = {
-  free: ['on-device transcription', 'weekly recording limit', 'basic note management'],
-  pro: ['whisper transcription', 'claude summaries', 'unlimited notes', 'multilingual support', 'priority processing'],
-  admin: ['manual pro grants', 'referral review', 'operational dashboard'],
-};
+export function canUseMemvoFeature(
+  planOrProfile: MemvoPlan | Pick<MemvoUserProfile, 'plan' | 'isAdmin'>,
+  feature: MemvoFeature,
+) {
+  const plan = typeof planOrProfile === 'string' ? planOrProfile : planOrProfile.plan;
+  const isAdmin = typeof planOrProfile === 'string' ? false : Boolean(planOrProfile.isAdmin);
 
-export function canUseMemvoFeature(plan: MemvoPlan, feature: string) {
-  return MEMVO_PLAN_FEATURES[plan].includes(feature) || plan === 'admin';
+  if (isAdmin || plan === 'admin') {
+    return true;
+  }
+
+  return MEMVO_PLAN_FEATURES[plan].includes(feature);
 }

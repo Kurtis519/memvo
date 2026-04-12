@@ -33,8 +33,12 @@ interface SpacePreviewerMessage {
   };
 }
 
+function canUseWindow(): boolean {
+  return Platform.OS === "web" && typeof window !== "undefined";
+}
+
 function isInIframe(): boolean {
-  if (Platform.OS !== "web") return false;
+  if (!canUseWindow()) return false;
   try {
     return window.self !== window.top;
   } catch {
@@ -48,7 +52,7 @@ function isWeb(): boolean {
 
 function sendToParent(type: MessageType, payload: Record<string, unknown> = {}): void {
   // NOTE: Validate parent origin if we need to transfer sensitive data
-  if (!isWeb() || !isInIframe()) return;
+  if (!canUseWindow() || !isInIframe()) return;
 
   const message: SpacePreviewerMessage = {
     type: "SpacePreviewerChannel",
@@ -104,7 +108,7 @@ export function subscribeSafeAreaInsets(callback: SafeAreaCallback): () => void 
  * Initialize Manus Runtime - just notifies parent that app is ready
  */
 export function initManusRuntime(): void {
-  if (!isWeb() || !isInIframe()) return;
+  if (!canUseWindow() || !isInIframe()) return;
   if (initialized) return;
   initialized = true;
 
@@ -117,5 +121,5 @@ export function initManusRuntime(): void {
  * Check if running inside preview iframe
  */
 export function isRunningInPreviewIframe(): boolean {
-  return isWeb() && isInIframe();
+  return canUseWindow() && isInIframe();
 }

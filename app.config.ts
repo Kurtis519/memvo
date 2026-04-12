@@ -27,6 +27,10 @@ const config: ExpoConfig = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: env.iosBundleId,
+    infoPlist: {
+      UIBackgroundModes: ['audio'],
+      NSMicrophoneUsageDescription: 'Memvo uses your microphone to capture private voice notes and continue recording while the app is backgrounded.',
+    },
   },
   android: {
     adaptiveIcon: {

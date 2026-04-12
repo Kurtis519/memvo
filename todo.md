@@ -15,3 +15,12 @@
 - [ ] Prepare Claude processing structure for summaries, action items, and tags
 - [x] Add offline queue storage model for local recordings and sync retries
 - [x] Validate Task 1 scaffolding, navigation, and configuration state before review
+- [x] Task 2: Build the complete recording screen and audio capture pipeline
+- [x] Add microphone permission flow with a clear first-use explanation message
+- [x] Build the full-screen recording UI with live waveform, timer, pause, stop, and paused state
+- [x] Add offline recording banner using real network reachability state
+- [x] Save recorded audio locally on device and create pending sync_queue entries
+- [x] Make newly recorded notes appear in the home feed immediately with Transcribing placeholder state
+- [x] Configure background-safe recording behavior for lock screen and app switching
+- [x] Add automatic sync queue processing with retry tracking and privacy deletion window scaffolding
+- [x] Validate recording flow behavior, offline indicator, queue insertion, and evidence capture for Task 2

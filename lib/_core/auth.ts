@@ -2,6 +2,10 @@ import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import { SESSION_TOKEN_KEY, USER_INFO_KEY } from "@/constants/oauth";
 
+function canUseBrowserStorage() {
+  return Platform.OS === "web" && typeof window !== "undefined" && !!window.localStorage;
+}
+
 export type User = {
   id: number;
   openId: string;
@@ -73,8 +77,7 @@ export async function getUserInfo(): Promise<User | null> {
     console.log("[Auth] Getting user info...");
 
     let info: string | null = null;
-    if (Platform.OS === "web") {
-      // Use localStorage for web
+    if (canUseBrowserStorage()) {
       info = window.localStorage.getItem(USER_INFO_KEY);
     } else {
       // Use SecureStore for native
@@ -98,8 +101,7 @@ export async function setUserInfo(user: User): Promise<void> {
   try {
     console.log("[Auth] Setting user info...", user);
 
-    if (Platform.OS === "web") {
-      // Use localStorage for web
+    if (canUseBrowserStorage()) {
       window.localStorage.setItem(USER_INFO_KEY, JSON.stringify(user));
       console.log("[Auth] User info stored in localStorage successfully");
       return;
@@ -115,8 +117,7 @@ export async function setUserInfo(user: User): Promise<void> {
 
 export async function clearUserInfo(): Promise<void> {
   try {
-    if (Platform.OS === "web") {
-      // Use localStorage for web
+    if (canUseBrowserStorage()) {
       window.localStorage.removeItem(USER_INFO_KEY);
       return;
     }
