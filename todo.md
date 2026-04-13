@@ -24,3 +24,7 @@
 - [x] Configure background-safe recording behavior for lock screen and app switching
 - [x] Add automatic sync queue processing with retry tracking and privacy deletion window scaffolding
 - [x] Validate recording flow behavior, offline indicator, queue insertion, and evidence capture for Task 2
+- [x] Fix the preview loading failure so the Memvo development preview becomes reachable again
+- [x] Verify the recording tab start, pause, and stop controls against the current Task 2 implementation
+- [x] Fix any recording-tab logic or UI issues preventing reliable audio capture and button behavior
+- [x] Re-validate the recording flow after fixes, including local save and pending queue creation behavior

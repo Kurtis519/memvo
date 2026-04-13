@@ -9,6 +9,12 @@ import { Alert, Text, TouchableOpacity, View } from 'react-native';
 import { ScreenContainer } from '@/components/screen-container';
 import { useMemvo } from '@/lib/memvo-store';
 import {
+  buildRecordingErrorMessage,
+  startRecordingSession,
+  stopRecordingSession,
+  toggleRecordingPause,
+} from '@/lib/recording-controller';
+import {
   MEMVO_AUDIO_DIRECTORY,
   MEMVO_PERMISSION_PROMPT_KEY,
   formatDuration,
@@ -106,11 +112,14 @@ export default function RecordScreen() {
   const [durationMillis, setDurationMillis] = useState(0);
   const [waveform, setWaveform] = useState<number[]>(() => Array.from({ length: BAR_COUNT }, (_, index) => 18 + ((index % 4) * 6)));
   const [isSaving, setIsSaving] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [recordingError, setRecordingError] = useState<string | null>(null);
 
   const resetUI = useCallback(() => {
     setIsRecording(false);
     setIsPaused(false);
     setDurationMillis(0);
+    setRecordingError(null);
     setWaveform(Array.from({ length: BAR_COUNT }, (_, index) => 18 + ((index % 4) * 6)));
     recordingRef.current = null;
   }, []);
@@ -139,76 +148,80 @@ export default function RecordScreen() {
   const timerLabel = useMemo(() => formatDuration(durationMillis), [durationMillis]);
 
   const startRecording = useCallback(async () => {
-    if (isSaving) {
+    if (isSaving || isTransitioning || isRecording) {
       return;
     }
 
-    const granted = await ensureMicrophonePermission();
-    setHasPermission(granted);
-    if (!granted) {
-      Alert.alert('Microphone access needed', 'Please enable microphone access in system settings to record a voice note.');
-      return;
-    }
+    setIsTransitioning(true);
+    setRecordingError(null);
 
     try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: true,
-        shouldDuckAndroid: false,
+      const recording = await startRecordingSession({
+        requestPermission: ensureMicrophonePermission,
+        setAudioMode: Audio.setAudioModeAsync,
+        createRecording: () => new Audio.Recording(),
+        recordingOptions: RECORDING_OPTIONS,
+        onStatusUpdate: handleStatusUpdate,
       });
 
-      const recording = new Audio.Recording();
-      await recording.prepareToRecordAsync(RECORDING_OPTIONS);
-      recording.setOnRecordingStatusUpdate(handleStatusUpdate);
-      await recording.startAsync();
       recordingRef.current = recording;
+      setHasPermission(true);
       setIsRecording(true);
       setIsPaused(false);
     } catch (error) {
+      const message = buildRecordingErrorMessage(error);
       console.error('Unable to start recording', error);
-      Alert.alert('Recording unavailable', 'Memvo could not start the microphone recording session on this device.');
+      setHasPermission(message.toLowerCase().includes('permission') ? false : true);
+      setRecordingError(message);
+      if (!message.toLowerCase().includes('permission')) {
+        Alert.alert('Recording unavailable', message);
+      }
+    } finally {
+      setIsTransitioning(false);
     }
-  }, [handleStatusUpdate, isSaving]);
+  }, [handleStatusUpdate, isRecording, isSaving, isTransitioning]);
 
   const pauseOrResumeRecording = useCallback(async () => {
     const activeRecording = recordingRef.current;
-    if (!activeRecording) {
+    if (!activeRecording || isSaving || isTransitioning) {
       return;
     }
 
+    setIsTransitioning(true);
+    setRecordingError(null);
+
     try {
-      if (isPaused) {
-        await activeRecording.startAsync();
-        setIsPaused(false);
-      } else {
-        await activeRecording.pauseAsync();
-        setIsPaused(true);
-      }
+      const nextPausedState = await toggleRecordingPause(activeRecording, isPaused);
+      setIsPaused(nextPausedState);
     } catch (error) {
+      const message = buildRecordingErrorMessage(error);
       console.error('Unable to toggle recording pause state', error);
-      Alert.alert('Recording control unavailable', 'Memvo could not pause or resume the recording right now.');
+      setRecordingError(message);
+      Alert.alert('Recording control unavailable', message);
+    } finally {
+      setIsTransitioning(false);
     }
-  }, [isPaused]);
+  }, [isPaused, isSaving, isTransitioning]);
 
   const stopRecording = useCallback(async () => {
     const activeRecording = recordingRef.current;
-    if (!activeRecording) {
+    if (!activeRecording || isTransitioning || isSaving) {
       return;
     }
 
     setIsSaving(true);
-    try {
-      await activeRecording.stopAndUnloadAsync();
-      const uri = activeRecording.getURI();
-      if (!uri) {
-        throw new Error('Recording finished without a file URI');
-      }
+    setRecordingError(null);
 
-      const persisted = await persistRecordingLocally(uri);
+    try {
+      const persisted = await stopRecordingSession({
+        recording: activeRecording,
+        durationMillis,
+        persistRecordingLocally,
+      });
+
       await addLocalRecording({
         localUri: persisted.localUri,
-        durationSeconds: Math.max(1, Math.round(durationMillis / 1000)),
+        durationSeconds: persisted.durationSeconds,
         fileSizeBytes: persisted.fileSizeBytes,
       });
 
@@ -216,12 +229,14 @@ export default function RecordScreen() {
       Alert.alert('Saved locally', 'Your voice note was stored on this device and queued for transcription.');
       router.replace('/');
     } catch (error) {
+      const message = buildRecordingErrorMessage(error);
       console.error('Unable to stop recording', error);
-      Alert.alert('Save failed', 'Memvo could not finish saving the voice note. Please try again.');
+      setRecordingError(message);
+      Alert.alert('Save failed', message);
     } finally {
       setIsSaving(false);
     }
-  }, [addLocalRecording, durationMillis, resetUI]);
+  }, [addLocalRecording, durationMillis, isSaving, isTransitioning, resetUI]);
 
   return (
     <ScreenContainer edges={['top', 'bottom', 'left', 'right']} className="bg-background px-5 pt-3 pb-6">
@@ -241,7 +256,9 @@ export default function RecordScreen() {
             <Text className="text-sm text-muted">
               {isRecording ? (isPaused ? 'Paused' : 'Capturing audio locally') : 'Ready when you are'}
             </Text>
-            {hasPermission === false ? (
+            {recordingError ? (
+              <Text className="text-center text-sm text-error">{recordingError}</Text>
+            ) : hasPermission === false ? (
               <Text className="text-center text-sm text-error">
                 Microphone permission is required to start recording.
               </Text>
@@ -269,9 +286,11 @@ export default function RecordScreen() {
                 justifyContent: 'center',
                 borderRadius: 999,
                 backgroundColor: TEAL,
+                opacity: isTransitioning ? 0.7 : 1,
               }}
+              disabled={isTransitioning}
             >
-              <Text className="text-base font-semibold text-white">Start recording</Text>
+              <Text className="text-base font-semibold text-white">{isTransitioning ? 'Starting…' : 'Start recording'}</Text>
             </TouchableOpacity>
           ) : (
             <View className="flex-row items-center justify-center gap-4">
@@ -287,9 +306,13 @@ export default function RecordScreen() {
                   borderWidth: 1,
                   borderColor: '#D5D9DD',
                   backgroundColor: '#FFFFFF',
+                  opacity: isTransitioning || isSaving ? 0.7 : 1,
                 }}
+                disabled={isTransitioning || isSaving}
               >
-                <Text className="text-base font-semibold text-foreground">{isPaused ? 'Resume' : 'Pause'}</Text>
+                <Text className="text-base font-semibold text-foreground">
+                  {isTransitioning ? 'Working…' : isPaused ? 'Resume' : 'Pause'}
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 accessibilityRole="button"

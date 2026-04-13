@@ -1,0 +1,13 @@
+Memvo preview inspection on 2026-04-13:
+- The app preview loads successfully.
+- The Record tab route opens at /record.
+- The recording screen renders with the timer, waveform panel, and a visible Start recording button.
+- The bottom tab bar remains visible with Home, Search, Record, Library, and Settings tabs.
+- No immediate blank-screen or route-crash issue is visible on initial render of the record tab.
+A subsequent interaction attempted to start recording in the web preview. The button remained visible and the screen displayed the inline message "Microphone permission is required to start recording." No browser console error was emitted during that attempt, which indicates the current failure mode in preview is permission denial rather than an obvious JavaScript crash.
+Further browser diagnostics showed that the preview origin exposes navigator.mediaDevices and reports microphone permission as "prompt", but a direct getUserMedia request failed with NotFoundError: "Requested device not found." This indicates the current sandbox preview lacks an accessible microphone device, so successful end-to-end audio capture cannot be proven in-browser here even though the UI itself loads.
+2026-04-13 post-fix preview check
+- The record tab still renders successfully after the recording-control refactor.
+- The primary action remains visible as "Start recording" with the timer at 00:00 before capture begins.
+- The screen now shows the inline message "Microphone permission is required to start recording." in the current browser preview environment, which matches the previously observed permission/device limitation.
+- This confirms the screen now exposes a clear user-facing error state instead of silently failing when recording cannot start in the preview sandbox.
