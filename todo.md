@@ -28,12 +28,21 @@
 - [x] Verify the recording tab start, pause, and stop controls against the current Task 2 implementation
 - [x] Fix any recording-tab logic or UI issues preventing reliable audio capture and button behavior
 - [x] Re-validate the recording flow after fixes, including local save and pending queue creation behavior
-- [ ] Review the attached Task 3 requirements and map them to Memvo screens, state, and data flow
-- [ ] Implement the Task 3 functionality and UX updates described in the attached file
-- [ ] Validate Task 3 with TypeScript, tests, and preview health checks before delivery
+- [x] Review the attached Task 3 requirements and map them to Memvo screens, state, and data flow
+- [x] Implement the Task 3 functionality and UX updates described in the attached file
+- [x] Validate Task 3 with TypeScript, tests, and preview health checks before delivery
 - [x] Add server-side plan verification for transcription, including admin and manual Pro overrides
-- [ ] Build the free-user on-device transcription path with minute-limit enforcement and friendly unsupported-device fallback
-- [ ] Build the Pro-user Whisper transcription path with upload, language detection, and rapid storage deletion for privacy
-- [ ] Add transcription retry, offline resume behavior, and failed-job user notification handling
-- [ ] Update note cards and queue UI for live transcription state, engine-specific messaging, and detected-language badges
+- [x] Build the free-user on-device transcription path with minute-limit enforcement and friendly unsupported-device fallback
+- [x] Build the Pro-user Whisper transcription path with upload, language detection, and rapid storage deletion for privacy
+- [x] Add transcription retry, offline resume behavior, and failed-job user notification handling
+- [x] Update note cards and queue UI for live transcription state, engine-specific messaging, and detected-language badges
 - [x] Add real tRPC procedures for verified transcription plan checks and Pro Whisper transcription in server/routers.ts
+- [x] Review the newly attached Memvo task specification and map its requirements to the current app, store, and backend
+- [x] Implement the next Memvo task functionality and any required UI or server changes from the new specification
+- [x] Validate the new Memvo task with TypeScript, tests, and project health checks before delivery
+- [x] Add server-side Claude note processing that runs automatically after successful transcription via Supabase Edge Function or database-triggered workflow
+- [x] Use a single Claude Sonnet 4.6 call per note to return title, summary, action_items, tags, mood, and language in strict JSON
+- [x] Persist Claude results to Supabase notes fields, including adding a nullable mood column and preserving existing Whisper language when present
+- [x] Add retry-on-invalid-JSON behavior, short-transcript fallback behavior, transcript truncation, and server-side error logging for Claude processing
+- [x] Update the home feed to show an Analysing state, Claude-generated title/summary preview, tags, and action-item count in real time
+- [x] Validate Task 4 end-to-end against the specification, including journal mood detection and meeting action-item extraction

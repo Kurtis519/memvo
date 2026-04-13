@@ -2,6 +2,8 @@ export type MemvoPlan = 'free' | 'pro' | 'admin';
 export type MemvoFolderKind = 'system' | 'custom';
 export type MemvoSyncStatus = 'pending' | 'uploading' | 'transcribing' | 'complete' | 'failed';
 export type MemvoTranscriptionEngine = 'on-device' | 'whisper';
+export type MemvoAiProcessingStatus = 'idle' | 'processing' | 'complete' | 'failed' | 'skipped';
+export type MemvoMood = string | null;
 export type MemvoFeature =
   | 'record'
   | 'offlinePlayback'
@@ -62,6 +64,10 @@ export interface MemvoNote {
   transcriptionPreview: string | null;
   lastError: string | null;
   isTranscribingLive: boolean;
+  mood: MemvoMood;
+  aiProcessingStatus: MemvoAiProcessingStatus;
+  aiProcessedAt: string | null;
+  aiError: string | null;
 }
 
 export interface MemvoSyncQueueItem {

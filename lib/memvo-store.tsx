@@ -108,6 +108,13 @@ function normalizeStoredNotes(raw: unknown): MemvoNote[] {
       transcriptionPreview: current.transcriptionPreview ?? null,
       lastError: current.lastError ?? null,
       isTranscribingLive: current.isTranscribingLive ?? false,
+      mood: typeof current.mood === 'string' ? current.mood : null,
+      aiProcessingStatus:
+        current.aiProcessingStatus === 'processing' || current.aiProcessingStatus === 'complete' || current.aiProcessingStatus === 'failed' || current.aiProcessingStatus === 'skipped'
+          ? current.aiProcessingStatus
+          : 'idle',
+      aiProcessedAt: current.aiProcessedAt ?? null,
+      aiError: current.aiError ?? null,
     } satisfies MemvoNote;
   });
 }
@@ -166,14 +173,22 @@ export function MemvoProvider({ children }: PropsWithChildren) {
 
     await supabase.from('notes').upsert({
       id: note.id,
+      user_id: note.userId,
+      folder_id: note.folderId,
       title: note.title,
       audio_path: note.audioPath,
       duration_seconds: note.durationSeconds,
       transcript: note.transcript,
       summary: note.summary,
+      action_items: note.actionItems,
+      tags: note.tags,
+      mood: note.mood,
       sync_status: note.syncStatus,
       transcription_engine: note.transcriptionEngine,
       language_detected: note.languageDetected,
+      ai_processing_status: note.aiProcessingStatus,
+      ai_processed_at: note.aiProcessedAt,
+      ai_error: note.aiError,
       recorded_at: note.recordedAt,
       updated_at: note.updatedAt,
     });
@@ -325,8 +340,12 @@ export function MemvoProvider({ children }: PropsWithChildren) {
 
         updateNote(String(row.id), (note) => ({
           ...note,
+          title: typeof row.title === 'string' && row.title.trim() ? row.title : note.title,
           transcript: typeof row.transcript === 'string' ? row.transcript : note.transcript,
           summary: typeof row.summary === 'string' ? row.summary : note.summary,
+          actionItems: Array.isArray(row.action_items) ? row.action_items.filter((value): value is string => typeof value === 'string') : note.actionItems,
+          tags: Array.isArray(row.tags) ? row.tags.filter((value): value is string => typeof value === 'string') : note.tags,
+          mood: typeof row.mood === 'string' ? row.mood : note.mood,
           syncStatus:
             row.sync_status === 'pending' || row.sync_status === 'uploading' || row.sync_status === 'transcribing' || row.sync_status === 'complete' || row.sync_status === 'failed'
               ? row.sync_status
@@ -336,9 +355,19 @@ export function MemvoProvider({ children }: PropsWithChildren) {
               ? row.transcription_engine
               : note.transcriptionEngine,
           languageDetected:
-            typeof row.language_detected === 'string' ? row.language_detected : note.languageDetected,
+            typeof row.language_detected === 'string'
+              ? row.language_detected
+              : typeof row.language_code === 'string'
+                ? row.language_code
+                : note.languageDetected,
+          aiProcessingStatus:
+            row.ai_processing_status === 'processing' || row.ai_processing_status === 'complete' || row.ai_processing_status === 'failed' || row.ai_processing_status === 'skipped'
+              ? row.ai_processing_status
+              : note.aiProcessingStatus,
+          aiProcessedAt: typeof row.ai_processed_at === 'string' ? row.ai_processed_at : note.aiProcessedAt,
+          aiError: typeof row.ai_error === 'string' ? row.ai_error : note.aiError,
           updatedAt: typeof row.updated_at === 'string' ? row.updated_at : new Date().toISOString(),
-          lastError: note.lastError,
+          lastError: typeof row.ai_error === 'string' && row.ai_error.trim() ? row.ai_error : note.lastError,
           isTranscribingLive: false,
           transcriptionPreview: note.transcriptionPreview,
         }));
@@ -580,7 +609,7 @@ export function MemvoProvider({ children }: PropsWithChildren) {
     const nextNote: MemvoNote = {
       ...note,
       transcript: result.transcript,
-      summary: buildEngineSummary(note.transcriptionEngine),
+      summary: isSupabaseConfigured ? 'Analysing with Claude…' : buildEngineSummary(note.transcriptionEngine),
       transcriptionPreview: result.transcript,
       languageDetected: result.languageDetected,
       syncStatus: 'complete',
@@ -588,6 +617,9 @@ export function MemvoProvider({ children }: PropsWithChildren) {
       isTranscribingLive: false,
       updatedAt: nowIso,
       localOnly: false,
+      aiProcessingStatus: isSupabaseConfigured ? 'processing' : 'idle',
+      aiProcessedAt: null,
+      aiError: null,
     };
 
     const nextQueueItem: MemvoSyncQueueItem = {
@@ -717,6 +749,10 @@ export function MemvoProvider({ children }: PropsWithChildren) {
       transcriptionPreview: null,
       lastError: null,
       isTranscribingLive: false,
+      mood: null,
+      aiProcessingStatus: 'idle',
+      aiProcessedAt: null,
+      aiError: null,
     };
 
     const queueItem: MemvoSyncQueueItem = {

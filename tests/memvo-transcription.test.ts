@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  MEMVO_AI_READY_LABEL,
+  MEMVO_ANALYSING_LABEL,
   MEMVO_FREE_LIMIT_MESSAGE,
   MEMVO_MAX_TRANSCRIPTION_RETRIES,
   buildEngineSummary,
@@ -120,19 +122,33 @@ describe('memvo transcription helpers', () => {
         syncStatus: 'complete',
         transcriptionEngine: 'whisper',
         lastError: null,
+        aiProcessingStatus: 'complete',
+        aiError: null,
       }),
-    ).toBe('Ready');
+    ).toBe(MEMVO_AI_READY_LABEL);
     expect(
       getNoteProcessingLabel({
         syncStatus: 'transcribing',
         transcriptionEngine: 'on-device',
         lastError: null,
+        aiProcessingStatus: 'idle',
+        aiError: null,
       }),
     ).toContain('device');
+    expect(
+      getNoteProcessingLabel({
+        syncStatus: 'complete',
+        transcriptionEngine: 'whisper',
+        lastError: null,
+        aiProcessingStatus: 'processing',
+        aiError: null,
+      }),
+    ).toBe(MEMVO_ANALYSING_LABEL);
     expect(buildTranscriptionFailureMessage(new Error(MEMVO_FREE_LIMIT_MESSAGE))).toBe(MEMVO_FREE_LIMIT_MESSAGE);
     expect(buildTranscriptionFailureMessage('custom failure')).toBe('custom failure');
     expect(buildEngineSummary('whisper')).toContain('Whisper');
     expect(getStatusTone('failed')).toBe('error');
-    expect(getStatusTone('complete')).toBe('success');
+    expect(getStatusTone('complete', 'processing')).toBe('progress');
+    expect(getStatusTone('complete', 'complete')).toBe('success');
   });
 });

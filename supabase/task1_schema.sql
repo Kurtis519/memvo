@@ -218,3 +218,83 @@ with check (
 
 comment on function public.handle_new_user_profile is 'Reads app.settings.memvo_admin_email to auto-assign the Memvo owner account admin access.';
 comment on table public.sync_queue is 'Tracks offline recordings that still need upload, transcription, or retry handling.';
+
+-- Task 4: Claude post-transcription note processing
+create extension if not exists pg_net with schema extensions;
+
+create type public.memvo_ai_processing_status as enum ('idle', 'processing', 'complete', 'failed', 'skipped');
+
+alter table public.user_profiles
+  add column if not exists manual_pro boolean not null default false,
+  add column if not exists bonus_minutes integer not null default 0,
+  add column if not exists minutes_used_this_month numeric not null default 0;
+
+alter table public.notes
+  add column if not exists action_items jsonb not null default '[]'::jsonb,
+  add column if not exists tags jsonb not null default '[]'::jsonb,
+  add column if not exists transcription_engine text,
+  add column if not exists language_detected text,
+  add column if not exists mood text,
+  add column if not exists ai_processing_status public.memvo_ai_processing_status not null default 'idle',
+  add column if not exists ai_error text,
+  add column if not exists ai_processed_at timestamptz,
+  add column if not exists recorded_at timestamptz not null default timezone('utc', now());
+
+alter table public.sync_queue
+  add column if not exists local_uri text,
+  add column if not exists last_attempt_at timestamptz,
+  add column if not exists next_retry_at timestamptz,
+  add column if not exists transcription_plan text;
+
+comment on column public.notes.mood is 'Optional journal-style mood inferred by Claude after transcription.';
+comment on column public.notes.ai_processing_status is 'Tracks whether Claude analysis is waiting, running, complete, failed, or skipped.';
+
+create or replace function public.invoke_process_note_with_ai()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  function_url text := current_setting('app.settings.memvo_process_note_with_ai_url', true);
+  service_role_key text := current_setting('app.settings.memvo_service_role_key', true);
+begin
+  if new.transcript is null or btrim(new.transcript) = '' then
+    return new;
+  end if;
+
+  if tg_op = 'UPDATE' and coalesce(old.transcript, '') = coalesce(new.transcript, '') and coalesce(old.sync_status, '') = coalesce(new.sync_status, '') then
+    return new;
+  end if;
+
+  if coalesce(new.sync_status, '') <> 'complete' then
+    return new;
+  end if;
+
+  if function_url is null or function_url = '' or service_role_key is null or service_role_key = '' then
+    raise log 'Memvo AI processing skipped because app.settings.memvo_process_note_with_ai_url or app.settings.memvo_service_role_key is not configured.';
+    return new;
+  end if;
+
+  perform net.http_post(
+    url := function_url,
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || service_role_key
+    ),
+    body := jsonb_build_object(
+      'type', 'note.transcription.completed',
+      'record', jsonb_build_object('id', new.id)
+    )
+  );
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_note_transcription_complete_ai on public.notes;
+create trigger on_note_transcription_complete_ai
+  after insert or update of transcript, sync_status on public.notes
+  for each row execute procedure public.invoke_process_note_with_ai();
+
+comment on function public.invoke_process_note_with_ai is 'Posts completed transcripts to the process-note-with-ai Edge Function. Configure app.settings.memvo_process_note_with_ai_url and app.settings.memvo_service_role_key first.';

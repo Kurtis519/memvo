@@ -1,10 +1,21 @@
-import type { MemvoNote, MemvoPlan, MemvoPlanCheckResult, MemvoSyncQueueItem, MemvoSyncStatus, MemvoTranscriptionEngine } from '@/lib/memvo-domain';
+import type {
+  MemvoAiProcessingStatus,
+  MemvoNote,
+  MemvoPlan,
+  MemvoPlanCheckResult,
+  MemvoSyncQueueItem,
+  MemvoSyncStatus,
+  MemvoTranscriptionEngine,
+} from '@/lib/memvo-domain';
 
 export const MEMVO_FREE_MINUTES_PER_MONTH = 120;
 export const MEMVO_RETRY_DELAY_MS = 30_000;
 export const MEMVO_MAX_TRANSCRIPTION_RETRIES = 3;
 export const MEMVO_WHISPER_WAITING_LABEL = 'Processing with Whisper...';
 export const MEMVO_ON_DEVICE_WAITING_LABEL = 'Transcribing on your device...';
+export const MEMVO_ANALYSING_LABEL = 'Analysing with Claude…';
+export const MEMVO_AI_READY_LABEL = 'AI notes ready';
+export const MEMVO_AI_FAILED_LABEL = 'AI analysis failed';
 export const MEMVO_FREE_LIMIT_MESSAGE = "You've used all your free minutes this month. Upgrade to Pro for unlimited transcription.";
 export const MEMVO_UNSUPPORTED_DEVICE_MESSAGE =
   'Your device does not support on-device transcription. Upgrade to Pro for Whisper-powered transcription in 99+ languages.';
@@ -69,34 +80,56 @@ export function shouldShowRetryNotification(item: Pick<MemvoSyncQueueItem, 'stat
   return item.status === 'failed' && item.retryCount >= MEMVO_MAX_TRANSCRIPTION_RETRIES && !item.notificationShown;
 }
 
-export function getNoteProcessingLabel(note: Pick<MemvoNote, 'syncStatus' | 'transcriptionEngine' | 'lastError'>) {
+export function getAiProcessingLabel(status: MemvoAiProcessingStatus, aiError?: string | null) {
+  if (status === 'failed') {
+    return aiError?.trim() || MEMVO_AI_FAILED_LABEL;
+  }
+
+  if (status === 'complete') {
+    return MEMVO_AI_READY_LABEL;
+  }
+
+  if (status === 'processing') {
+    return MEMVO_ANALYSING_LABEL;
+  }
+
+  if (status === 'skipped') {
+    return 'Transcript saved without AI summary';
+  }
+
+  return 'Awaiting AI analysis';
+}
+
+export function getNoteProcessingLabel(note: Pick<MemvoNote, 'syncStatus' | 'transcriptionEngine' | 'lastError' | 'aiProcessingStatus' | 'aiError'>) {
   if (note.lastError) {
     return note.lastError;
   }
 
-  if (note.syncStatus === 'complete') {
-    return 'Ready';
+  if (note.syncStatus !== 'complete') {
+    if (note.transcriptionEngine === 'whisper') {
+      return MEMVO_WHISPER_WAITING_LABEL;
+    }
+
+    return MEMVO_ON_DEVICE_WAITING_LABEL;
   }
 
-  if (note.transcriptionEngine === 'whisper') {
-    return MEMVO_WHISPER_WAITING_LABEL;
+  if (note.aiProcessingStatus === 'processing' || note.aiProcessingStatus === 'complete' || note.aiProcessingStatus === 'failed' || note.aiProcessingStatus === 'skipped') {
+    return getAiProcessingLabel(note.aiProcessingStatus, note.aiError);
   }
 
-  return MEMVO_ON_DEVICE_WAITING_LABEL;
+  return 'Ready';
 }
 
-export function getStatusTone(status: MemvoSyncStatus) {
-  switch (status) {
-    case 'complete':
-      return 'success';
-    case 'failed':
-      return 'error';
-    case 'uploading':
-    case 'transcribing':
-    case 'pending':
-    default:
-      return 'progress';
+export function getStatusTone(status: MemvoSyncStatus, aiProcessingStatus: MemvoAiProcessingStatus = 'idle') {
+  if (status === 'failed' || aiProcessingStatus === 'failed') {
+    return 'error';
   }
+
+  if (status === 'complete' && (aiProcessingStatus === 'complete' || aiProcessingStatus === 'skipped' || aiProcessingStatus === 'idle')) {
+    return 'success';
+  }
+
+  return 'progress';
 }
 
 export function normalizeLanguageBadge(language: string | null | undefined) {

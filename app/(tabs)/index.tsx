@@ -82,13 +82,18 @@ export default function HomeScreen() {
           const recordedAt = new Date(item.recordedAt);
           const durationLabel = formatDuration(item.durationSeconds * 1000);
           const statusLabel = getNoteProcessingLabel(item);
-          const statusTone = getStatusTone(item.syncStatus);
+          const statusTone = getStatusTone(item.syncStatus, item.aiProcessingStatus);
           const statusClasses = getStatusClasses(statusTone);
           const queueItem = syncQueue.find((entry) => entry.noteId === item.id);
           const languageBadge = normalizeLanguageBadge(item.languageDetected);
           const engineBadge = item.transcriptionEngine === 'whisper' ? 'Whisper' : item.transcriptionEngine === 'on-device' ? 'On-device' : 'Queued';
           const storageLabel = item.localOnly ? 'Saved locally' : 'Synced';
           const showRetry = item.syncStatus === 'failed' && queueItem;
+          const previewText = item.aiProcessingStatus === 'complete' || item.aiProcessingStatus === 'skipped'
+            ? item.summary || item.transcript || item.transcriptionPreview || 'Queued for transcription...'
+            : item.aiProcessingStatus === 'processing'
+              ? item.summary || 'Analysing with Claude…'
+              : item.transcript || item.transcriptionPreview || item.summary || 'Queued for transcription...';
 
           return (
             <View className="gap-3 rounded-3xl border border-border bg-surface p-4">
@@ -102,7 +107,29 @@ export default function HomeScreen() {
                 </View>
               </View>
 
-              <Text className="text-sm leading-6 text-muted">{item.transcript || item.transcriptionPreview || item.summary || 'Queued for transcription...'}</Text>
+              <Text className="text-sm leading-6 text-muted">{previewText}</Text>
+
+              {(item.tags.length > 0 || item.actionItems.length > 0 || item.mood) ? (
+                <View className="gap-2">
+                  <View className="flex-row flex-wrap items-center gap-2">
+                    {item.mood ? (
+                      <View className="rounded-full bg-background px-3 py-1.5">
+                        <Text className="text-xs font-medium capitalize text-foreground">Mood · {item.mood}</Text>
+                      </View>
+                    ) : null}
+                    {item.tags.map((tag) => (
+                      <View key={`${item.id}-${tag}`} className="rounded-full bg-background px-3 py-1.5">
+                        <Text className="text-xs font-medium text-foreground">#{tag}</Text>
+                      </View>
+                    ))}
+                    {item.actionItems.length > 0 ? (
+                      <View className="rounded-full bg-background px-3 py-1.5">
+                        <Text className="text-xs font-medium text-foreground">{item.actionItems.length} action item{item.actionItems.length === 1 ? '' : 's'}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+              ) : null}
 
               <View className="flex-row flex-wrap items-center gap-2">
                 <View className={`rounded-full px-3 py-1.5 ${statusClasses.badge}`}>
@@ -114,6 +141,11 @@ export default function HomeScreen() {
                 {languageBadge ? (
                   <View className="rounded-full bg-background px-3 py-1.5">
                     <Text className="text-xs font-medium text-foreground">{languageBadge}</Text>
+                  </View>
+                ) : null}
+                {item.aiProcessingStatus === 'processing' ? (
+                  <View className="rounded-full bg-background px-3 py-1.5">
+                    <Text className="text-xs font-medium text-foreground">Claude</Text>
                   </View>
                 ) : null}
               </View>
