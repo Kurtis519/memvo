@@ -35,6 +35,9 @@ describe('memvo recording utilities', () => {
         createdAt: '2026-04-12T14:00:00.000Z',
         updatedAt: '2026-04-12T14:00:00.000Z',
         lastAttemptAt: null,
+        nextRetryAt: null,
+        plan: null,
+        notificationShown: false,
       }),
     ).toBe('pending');
   });

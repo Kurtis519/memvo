@@ -28,3 +28,12 @@
 - [x] Verify the recording tab start, pause, and stop controls against the current Task 2 implementation
 - [x] Fix any recording-tab logic or UI issues preventing reliable audio capture and button behavior
 - [x] Re-validate the recording flow after fixes, including local save and pending queue creation behavior
+- [ ] Review the attached Task 3 requirements and map them to Memvo screens, state, and data flow
+- [ ] Implement the Task 3 functionality and UX updates described in the attached file
+- [ ] Validate Task 3 with TypeScript, tests, and preview health checks before delivery
+- [x] Add server-side plan verification for transcription, including admin and manual Pro overrides
+- [ ] Build the free-user on-device transcription path with minute-limit enforcement and friendly unsupported-device fallback
+- [ ] Build the Pro-user Whisper transcription path with upload, language detection, and rapid storage deletion for privacy
+- [ ] Add transcription retry, offline resume behavior, and failed-job user notification handling
+- [ ] Update note cards and queue UI for live transcription state, engine-specific messaging, and detected-language badges
+- [x] Add real tRPC procedures for verified transcription plan checks and Pro Whisper transcription in server/routers.ts

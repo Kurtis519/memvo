@@ -1,6 +1,7 @@
 export type MemvoPlan = 'free' | 'pro' | 'admin';
 export type MemvoFolderKind = 'system' | 'custom';
 export type MemvoSyncStatus = 'pending' | 'uploading' | 'transcribing' | 'complete' | 'failed';
+export type MemvoTranscriptionEngine = 'on-device' | 'whisper';
 export type MemvoFeature =
   | 'record'
   | 'offlinePlayback'
@@ -19,8 +20,16 @@ export interface MemvoUserProfile {
   email: string | null;
   plan: MemvoPlan;
   isAdmin: boolean;
+  manualPro: boolean;
+  bonusMinutes: number;
+  minutesUsedThisMonth: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface MemvoPlanCheckResult {
+  plan: 'free' | 'pro';
+  source: 'edge-function' | 'admin-override' | 'manual-pro' | 'revenuecat-placeholder' | 'fallback';
 }
 
 export interface MemvoFolder {
@@ -48,6 +57,11 @@ export interface MemvoNote {
   actionItems: string[];
   tags: string[];
   localOnly: boolean;
+  transcriptionEngine: MemvoTranscriptionEngine | null;
+  languageDetected: string | null;
+  transcriptionPreview: string | null;
+  lastError: string | null;
+  isTranscribingLive: boolean;
 }
 
 export interface MemvoSyncQueueItem {
@@ -62,6 +76,9 @@ export interface MemvoSyncQueueItem {
   createdAt: string;
   updatedAt: string;
   lastAttemptAt: string | null;
+  nextRetryAt: string | null;
+  plan: 'free' | 'pro' | null;
+  notificationShown: boolean;
 }
 
 export interface MemvoReferral {
