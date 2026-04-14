@@ -1,11 +1,12 @@
-import { createAudioPlayer, setAudioModeAsync, useAudioPlayerStatus } from 'expo-audio';
 import * as Clipboard from 'expo-clipboard';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import { createAudioPlayer, setAudioModeAsync, useAudioPlayerStatus } from 'expo-audio';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  Modal,
   Pressable,
   ScrollView,
   Text,
@@ -16,10 +17,12 @@ import {
 
 import { ScreenContainer } from '@/components/screen-container';
 import { buildExportText, parseTranscriptTimeSeconds } from '@/lib/memvo-note-detail';
+import { getSuggestedTags } from '@/lib/memvo-organization';
 import { useMemvo } from '@/lib/memvo-store';
 import { buildFeedTimestampLabel, formatDuration } from '@/lib/memvo-recording-utils';
 
 const TEAL = '#0F6E56';
+const TEAL_TINT = '#E1F5EE';
 
 function AudioPlayerBar({ uri }: { uri: string }) {
   const player = useMemo(() => createAudioPlayer({ uri }), [uri]);
@@ -50,10 +53,7 @@ function AudioPlayerBar({ uri }: { uri: string }) {
   };
 
   const seekToRatio = (ratio: number) => {
-    if (!duration) {
-      return;
-    }
-
+    if (!duration) return;
     player.seekTo(duration * ratio);
   };
 
@@ -98,8 +98,13 @@ function AudioPlayerBar({ uri }: { uri: string }) {
 export default function NoteDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const {
+    deleteFolder,
     deleteNote,
+    folders,
+    getFolderById,
     getNoteById,
+    moveNoteToFolder,
+    notes,
     toggleStar,
     updateNoteTags,
     updateNoteTitle,
@@ -107,13 +112,15 @@ export default function NoteDetailScreen() {
   } = useMemvo();
   const note = getNoteById(id);
   const [draftTitle, setDraftTitle] = useState(note?.title ?? '');
-  const [draftTags, setDraftTags] = useState(note?.tags.join(', ') ?? '');
+  const [tagEditorOpen, setTagEditorOpen] = useState(false);
+  const [folderPickerOpen, setFolderPickerOpen] = useState(false);
+  const [tagDraft, setTagDraft] = useState(note?.tags.join(', ') ?? '');
   const [summaryExpanded, setSummaryExpanded] = useState(false);
 
   useEffect(() => {
     setDraftTitle(note?.title ?? '');
-    setDraftTags(note?.tags.join(', ') ?? '');
-  }, [note?.id, note?.title, note?.tags]);
+    setTagDraft(note?.tags.join(', ') ?? '');
+  }, [note?.id, note?.tags, note?.title]);
 
   if (!note) {
     return (
@@ -128,16 +135,30 @@ export default function NoteDetailScreen() {
     );
   }
 
+  const currentFolder = getFolderById(note.folderId);
+  const suggestedTags = getSuggestedTags(notes, note.tags);
+  const transcriptLines = note.transcript ? note.transcript.split(/\n+/).filter(Boolean) : [];
+  const isPro = Boolean(userProfile && (userProfile.plan === 'pro' || userProfile.plan === 'admin' || userProfile.isAdmin));
+  const summaryText = note.summary || 'Memvo is still preparing this note summary.';
+  const visibleSummary = summaryExpanded ? summaryText : summaryText.slice(0, 220);
+
   const saveTitle = () => {
     void updateNoteTitle(note.id, draftTitle);
   };
 
-  const saveTags = () => {
-    const tags = draftTags
-      .split(',')
-      .map((tag) => tag.trim().replace(/^#/, ''))
-      .filter(Boolean);
-    void updateNoteTags(note.id, tags);
+  const saveTags = async () => {
+    const tags = [...new Set(tagDraft.split(',').map((tag) => tag.trim().replace(/^#/, '')).filter(Boolean))];
+    await updateNoteTags(note.id, tags);
+    setTagDraft(tags.join(', '));
+    setTagEditorOpen(false);
+  };
+
+  const addSuggestedTag = (tag: string) => {
+    const currentTags = tagDraft.split(',').map((value) => value.trim().replace(/^#/, '')).filter(Boolean);
+    if (currentTags.includes(tag)) {
+      return;
+    }
+    setTagDraft([...currentTags, tag].join(', '));
   };
 
   const copyTranscript = async () => {
@@ -193,11 +214,6 @@ export default function NoteDetailScreen() {
     ]);
   };
 
-  const transcriptLines = note.transcript ? note.transcript.split(/\n+/).filter(Boolean) : [];
-  const isPro = Boolean(userProfile && (userProfile.plan === 'pro' || userProfile.plan === 'admin' || userProfile.isAdmin));
-  const summaryText = note.summary || 'Memvo is still preparing this note summary.';
-  const visibleSummary = summaryExpanded ? summaryText : summaryText.slice(0, 220);
-
   return (
     <ScreenContainer edges={['top', 'bottom', 'left', 'right']} className="bg-background px-5 pt-4 pb-8">
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
@@ -229,15 +245,52 @@ export default function NoteDetailScreen() {
                 <Text className="text-xs font-semibold capitalize text-primary">Mood · {note.mood}</Text>
               </View>
             ) : null}
-            <TextInput
-              value={draftTags}
-              onChangeText={setDraftTags}
-              onBlur={saveTags}
-              onSubmitEditing={saveTags}
-              returnKeyType="done"
-              placeholder="Add tags separated by commas"
-              className="rounded-2xl bg-background px-4 py-3 text-sm text-foreground"
-            />
+            <View className="gap-3 rounded-2xl bg-background px-4 py-4">
+              <View className="flex-row items-center justify-between gap-4">
+                <Text className="text-sm font-semibold text-foreground">Tags</Text>
+                <TouchableOpacity accessibilityRole="button" activeOpacity={0.8} onPress={() => setTagEditorOpen(true)}>
+                  <Text className="text-xs font-semibold text-primary">Edit</Text>
+                </TouchableOpacity>
+              </View>
+              <View className="flex-row flex-wrap gap-2">
+                {note.tags.length > 0 ? (
+                  note.tags.map((tag) => (
+                    <TouchableOpacity
+                      key={`${note.id}-${tag}`}
+                      accessibilityRole="button"
+                      activeOpacity={0.82}
+                      onPress={() => setTagEditorOpen(true)}
+                      style={{ backgroundColor: TEAL_TINT, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 }}
+                    >
+                      <Text style={{ color: TEAL, fontSize: 12, fontWeight: '700' }}>#{tag}</Text>
+                    </TouchableOpacity>
+                  ))
+                ) : (
+                  <Text className="text-sm text-muted">Add tags to make this note easier to find.</Text>
+                )}
+              </View>
+              {suggestedTags.length > 0 ? (
+                <View className="gap-2">
+                  <Text className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Suggested tags</Text>
+                  <View className="flex-row flex-wrap gap-2">
+                    {suggestedTags.map((tag) => (
+                      <TouchableOpacity
+                        key={tag}
+                        accessibilityRole="button"
+                        activeOpacity={0.82}
+                        onPress={() => {
+                          addSuggestedTag(tag);
+                          setTagEditorOpen(true);
+                        }}
+                        className="rounded-full border border-border px-3 py-2"
+                      >
+                        <Text className="text-xs font-semibold text-foreground">+ {tag}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              ) : null}
+            </View>
           </View>
 
           {note.audioPath ? <AudioPlayerBar uri={note.audioPath} /> : null}
@@ -291,7 +344,6 @@ export default function NoteDetailScreen() {
                         if (seekSeconds === null) {
                           return;
                         }
-
                         Alert.alert('Playback shortcut', `Jump playback from the player controls to ${formatDuration(seekSeconds * 1000)}.`);
                       }}
                     >
@@ -308,6 +360,11 @@ export default function NoteDetailScreen() {
           <View className="rounded-[28px] border border-border bg-surface p-4">
             <Text className="text-base font-semibold text-foreground">Actions</Text>
             <View className="mt-4 gap-3">
+              <TouchableOpacity accessibilityRole="button" activeOpacity={0.8} onPress={() => setFolderPickerOpen(true)} className="rounded-2xl bg-background px-4 py-3">
+                <Text className="text-sm font-semibold text-foreground">
+                  {currentFolder ? `Move from ${currentFolder.name}` : 'Move to folder'}
+                </Text>
+              </TouchableOpacity>
               <TouchableOpacity accessibilityRole="button" activeOpacity={0.8} onPress={() => void toggleStar(note.id)} className="rounded-2xl bg-background px-4 py-3">
                 <Text className="text-sm font-semibold text-foreground">{note.isStarred ? 'Remove star' : 'Star this note'}</Text>
               </TouchableOpacity>
@@ -327,6 +384,92 @@ export default function NoteDetailScreen() {
           </View>
         </View>
       </ScrollView>
+
+      <Modal visible={tagEditorOpen} animationType="slide" transparent onRequestClose={() => setTagEditorOpen(false)}>
+        <View className="flex-1 justify-end bg-black/20">
+          <View className="rounded-t-[32px] bg-background px-5 pb-8 pt-5">
+            <View className="flex-row items-center justify-between">
+              <Text className="text-lg font-semibold text-foreground">Edit tags</Text>
+              <TouchableOpacity accessibilityRole="button" activeOpacity={0.8} onPress={() => setTagEditorOpen(false)}>
+                <Text className="text-sm font-semibold text-primary">Close</Text>
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              value={tagDraft}
+              onChangeText={setTagDraft}
+              placeholder="work, strategy, follow-up"
+              placeholderTextColor="#8A9198"
+              className="mt-4 rounded-2xl bg-surface px-4 py-4 text-base text-foreground"
+              returnKeyType="done"
+              onSubmitEditing={() => void saveTags()}
+            />
+            {suggestedTags.length > 0 ? (
+              <View className="mt-4 gap-2">
+                <Text className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">Suggestions</Text>
+                <View className="flex-row flex-wrap gap-2">
+                  {suggestedTags.map((tag) => (
+                    <TouchableOpacity
+                      key={`suggestion-${tag}`}
+                      accessibilityRole="button"
+                      activeOpacity={0.82}
+                      onPress={() => addSuggestedTag(tag)}
+                      className="rounded-full border border-border px-3 py-2"
+                    >
+                      <Text className="text-xs font-semibold text-foreground">+ {tag}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+            <TouchableOpacity accessibilityRole="button" activeOpacity={0.82} onPress={() => void saveTags()} className="mt-5 rounded-2xl bg-primary px-4 py-4">
+              <Text className="text-center text-sm font-semibold text-white">Save tags</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={folderPickerOpen} animationType="slide" transparent onRequestClose={() => setFolderPickerOpen(false)}>
+        <View className="flex-1 justify-end bg-black/20">
+          <View className="rounded-t-[32px] bg-background px-5 pb-8 pt-5">
+            <View className="flex-row items-center justify-between">
+              <Text className="text-lg font-semibold text-foreground">Move to folder</Text>
+              <TouchableOpacity accessibilityRole="button" activeOpacity={0.8} onPress={() => setFolderPickerOpen(false)}>
+                <Text className="text-sm font-semibold text-primary">Close</Text>
+              </TouchableOpacity>
+            </View>
+            <View className="mt-4 gap-3">
+              <TouchableOpacity
+                accessibilityRole="button"
+                activeOpacity={0.82}
+                onPress={() => {
+                  void moveNoteToFolder(note.id, null);
+                  setFolderPickerOpen(false);
+                }}
+                className="rounded-2xl bg-surface px-4 py-4"
+              >
+                <Text className="text-sm font-semibold text-foreground">Remove from folder</Text>
+              </TouchableOpacity>
+              {folders.filter((folder) => folder.slug !== 'all-notes' && folder.slug !== 'starred').map((folder) => (
+                <TouchableOpacity
+                  key={folder.id}
+                  accessibilityRole="button"
+                  activeOpacity={0.82}
+                  onPress={() => {
+                    void moveNoteToFolder(note.id, folder.id);
+                    setFolderPickerOpen(false);
+                  }}
+                  className="rounded-2xl bg-surface px-4 py-4"
+                >
+                  <View className="flex-row items-center justify-between">
+                    <Text className="text-sm font-semibold text-foreground">{folder.name}</Text>
+                    {note.folderId === folder.id ? <Text className="text-xs font-semibold text-primary">Current</Text> : null}
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }

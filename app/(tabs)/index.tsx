@@ -25,7 +25,7 @@ const LIGHT_TEAL = '#E1F5EE';
 const AMBER = '#A16207';
 const AMBER_BG = '#FEF3C7';
 
-type Cluster = {
+type TagCluster = {
   id: string;
   label: string;
   count: number;
@@ -39,16 +39,9 @@ function getGreeting(date = new Date()) {
 }
 
 function getDisplayName(email: string | null | undefined) {
-  if (!email) {
-    return 'there';
-  }
-
+  if (!email) return 'there';
   const localPart = email.split('@')[0] ?? '';
-  const pieces = localPart
-    .split(/[._-]+/)
-    .map((piece) => piece.trim())
-    .filter(Boolean);
-
+  const pieces = localPart.split(/[._-]+/).map((piece) => piece.trim()).filter(Boolean);
   const firstPiece = pieces[0] ?? localPart;
   return firstPiece ? firstPiece.charAt(0).toUpperCase() + firstPiece.slice(1) : 'there';
 }
@@ -66,21 +59,12 @@ function getInitials(email: string | null | undefined) {
 function getStatusClasses(status: ReturnType<typeof getStatusTone>) {
   switch (status) {
     case 'success':
-      return {
-        badge: 'bg-green-50',
-        text: 'text-success',
-      };
+      return { badge: 'bg-green-50', text: 'text-success' };
     case 'error':
-      return {
-        badge: 'bg-red-50',
-        text: 'text-error',
-      };
+      return { badge: 'bg-red-50', text: 'text-error' };
     case 'progress':
     default:
-      return {
-        badge: 'bg-[#EEF8F4]',
-        text: 'text-primary',
-      };
+      return { badge: 'bg-[#EEF8F4]', text: 'text-primary' };
   }
 }
 
@@ -90,7 +74,6 @@ function buildSummaryPreview(summary: string | null, transcript: string | null, 
     .split(/\n+/)
     .map((line) => line.replace(/^[-*•]\s*/, '').trim())
     .find(Boolean);
-
   return firstBullet || source;
 }
 
@@ -111,7 +94,9 @@ function EmptyState() {
 export default function HomeScreen() {
   const {
     deleteNote,
+    folders,
     isHydrated,
+    moveNoteToFolder,
     notes,
     processPendingQueue,
     retryQueueItem,
@@ -119,7 +104,7 @@ export default function HomeScreen() {
     toggleStar,
     userProfile,
   } = useMemvo();
-  const [selectedCluster, setSelectedCluster] = useState<string | null>(null);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
   const displayName = useMemo(() => getDisplayName(userProfile?.email), [userProfile?.email]);
   const initials = useMemo(() => getInitials(userProfile?.email), [userProfile?.email]);
@@ -128,14 +113,13 @@ export default function HomeScreen() {
     [],
   );
 
-  const clusters = useMemo<Cluster[]>(() => {
+  const tagClusters = useMemo<TagCluster[]>(() => {
     const counts = new Map<string, number>();
-
     for (const note of notes) {
       for (const tag of note.tags) {
-        const key = tag.trim();
-        if (!key) continue;
-        counts.set(key, (counts.get(key) ?? 0) + 1);
+        const normalized = tag.trim().replace(/^#/, '');
+        if (!normalized) continue;
+        counts.set(normalized, (counts.get(normalized) ?? 0) + 1);
       }
     }
 
@@ -144,15 +128,10 @@ export default function HomeScreen() {
       .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
   }, [notes]);
 
-  const canShowClusters = Boolean(userProfile && (userProfile.plan === 'pro' || userProfile.plan === 'admin' || userProfile.isAdmin));
-
   const filteredNotes = useMemo(() => {
-    if (!selectedCluster) {
-      return notes;
-    }
-
-    return notes.filter((note) => note.tags.includes(selectedCluster));
-  }, [notes, selectedCluster]);
+    if (!selectedTag) return notes;
+    return notes.filter((note) => note.tags.some((tag) => tag.toLowerCase() === selectedTag.toLowerCase()));
+  }, [notes, selectedTag]);
 
   const confirmDelete = (noteId: string) => {
     Alert.alert('Delete note?', 'This removes the note from Memvo and deletes any saved local audio for it.', [
@@ -167,6 +146,28 @@ export default function HomeScreen() {
     ]);
   };
 
+  const openMoveToFolderMenu = (noteId: string) => {
+    const folderActions = folders
+      .filter((folder) => folder.slug !== 'all-notes' && folder.slug !== 'starred')
+      .map((folder) => ({
+        text: folder.name,
+        onPress: () => {
+          void moveNoteToFolder(noteId, folder.id);
+        },
+      }));
+
+    Alert.alert('Move to folder', 'Choose where this note should live.', [
+      ...folderActions,
+      {
+        text: 'Remove from folder',
+        onPress: () => {
+          void moveNoteToFolder(noteId, null);
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
   const openContextMenu = (noteId: string, isStarred: boolean) => {
     Alert.alert('Note actions', 'Choose what you want to do with this note.', [
       {
@@ -177,9 +178,7 @@ export default function HomeScreen() {
       },
       {
         text: 'Move to folder',
-        onPress: () => {
-          Alert.alert('Folders coming soon', 'Folder management will be connected in a follow-up task.');
-        },
+        onPress: () => openMoveToFolderMenu(noteId),
       },
       {
         text: 'Delete',
@@ -215,23 +214,32 @@ export default function HomeScreen() {
               onPress={() => router.push('/search')}
               className="rounded-2xl border border-border bg-surface px-4 py-4"
             >
-              <Text className="text-sm text-muted">Search notes...</Text>
+              <Text className="text-sm text-muted">Search notes, tags, and folders...</Text>
             </TouchableOpacity>
 
-            {canShowClusters && clusters.length > 0 ? (
+            {selectedTag ? (
+              <View className="flex-row items-center gap-2 rounded-2xl bg-[#EEF8F4] px-4 py-3">
+                <Text className="text-sm font-semibold text-primary">Filtering by #{selectedTag}</Text>
+                <TouchableOpacity accessibilityRole="button" activeOpacity={0.8} onPress={() => setSelectedTag(null)}>
+                  <Text className="text-sm font-semibold text-primary">Clear</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            {tagClusters.length > 0 ? (
               <FlatList
-                data={clusters}
+                data={tagClusters}
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 keyExtractor={(item) => item.id}
                 contentContainerStyle={{ gap: 12 }}
                 renderItem={({ item }) => {
-                  const active = selectedCluster === item.id;
+                  const active = selectedTag === item.id;
                   return (
                     <TouchableOpacity
                       accessibilityRole="button"
                       activeOpacity={0.85}
-                      onPress={() => setSelectedCluster((current) => (current === item.id ? null : item.id))}
+                      onPress={() => setSelectedTag((current) => (current === item.id ? null : item.id))}
                       style={{
                         paddingHorizontal: 16,
                         paddingVertical: 14,
@@ -239,7 +247,7 @@ export default function HomeScreen() {
                         backgroundColor: active ? TEAL : LIGHT_TEAL,
                       }}
                     >
-                      <Text style={{ color: active ? '#FFFFFF' : TEAL, fontWeight: '700' }}>{item.label}</Text>
+                      <Text style={{ color: active ? '#FFFFFF' : TEAL, fontWeight: '700' }}>#{item.label}</Text>
                       <Text style={{ color: active ? '#DFF7EF' : TEAL, marginTop: 4, fontSize: 12 }}>
                         {item.count} {item.count === 1 ? 'note' : 'notes'}
                       </Text>
@@ -264,6 +272,7 @@ export default function HomeScreen() {
           const visibleTags = item.tags.slice(0, 3);
           const hiddenTagCount = Math.max(0, item.tags.length - visibleTags.length);
           const showRetry = item.syncStatus === 'failed' && queueItem;
+          const folderName = folders.find((folder) => folder.id === item.folderId)?.name;
 
           return (
             <Swipeable
@@ -312,10 +321,21 @@ export default function HomeScreen() {
                 </Text>
 
                 <View className="mt-3 flex-row flex-wrap items-center gap-2">
-                  {visibleTags.map((tag) => (
-                    <View key={`${item.id}-${tag}`} className="rounded-full bg-[#EEF8F4] px-3 py-1.5">
-                      <Text className="text-xs font-medium text-primary">#{tag}</Text>
+                  {folderName ? (
+                    <View className="rounded-full bg-background px-3 py-1.5">
+                      <Text className="text-xs font-medium text-muted">{folderName}</Text>
                     </View>
+                  ) : null}
+                  {visibleTags.map((tag) => (
+                    <TouchableOpacity
+                      key={`${item.id}-${tag}`}
+                      accessibilityRole="button"
+                      activeOpacity={0.82}
+                      onPress={() => setSelectedTag(tag)}
+                      className="rounded-full bg-[#EEF8F4] px-3 py-1.5"
+                    >
+                      <Text className="text-xs font-medium text-primary">#{tag}</Text>
+                    </TouchableOpacity>
                   ))}
                   {hiddenTagCount > 0 ? (
                     <View className="rounded-full bg-background px-3 py-1.5">

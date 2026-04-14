@@ -15,6 +15,7 @@ import {
 } from 'react';
 
 import type {
+  MemvoFolder,
   MemvoNote,
   MemvoPlanCheckResult,
   MemvoSyncQueueItem,
@@ -26,6 +27,19 @@ import {
   MEMVO_QUEUE_STORAGE_KEY,
   buildTemporaryNoteTitle,
 } from '@/lib/memvo-recording-utils';
+import {
+  MEMVO_FOLDERS_STORAGE_KEY,
+  MEMVO_MAX_FREE_CUSTOM_FOLDERS,
+  MEMVO_RECENT_SEARCHES_STORAGE_KEY,
+  buildRecentSearches,
+  countCustomFolders,
+  createId as createOrganizationId,
+  ensureDefaultFolders,
+  normalizeStoredFolders,
+  removeRecentSearch,
+  sanitizeFolderName,
+  slugifyFolderName,
+} from '@/lib/memvo-organization';
 import {
   MEMVO_FREE_LIMIT_MESSAGE,
   MEMVO_MAX_TRANSCRIPTION_RETRIES,
@@ -52,7 +66,9 @@ type RecordingSaveInput = {
 };
 
 type MemvoContextValue = {
+  folders: MemvoFolder[];
   notes: MemvoNote[];
+  recentSearches: string[];
   syncQueue: MemvoSyncQueueItem[];
   isHydrated: boolean;
   isOnline: boolean;
@@ -60,7 +76,14 @@ type MemvoContextValue = {
   addLocalRecording: (input: RecordingSaveInput) => Promise<MemvoNote>;
   processPendingQueue: () => Promise<void>;
   retryQueueItem: (queueId: string) => Promise<void>;
+  getFolderById: (folderId: string | null | undefined) => MemvoFolder | undefined;
   getNoteById: (noteId: string) => MemvoNote | undefined;
+  createFolder: (name: string) => Promise<MemvoFolder | null>;
+  renameFolder: (folderId: string, name: string) => Promise<MemvoFolder | null>;
+  deleteFolder: (folderId: string) => Promise<void>;
+  moveNoteToFolder: (noteId: string, folderId: string | null) => Promise<void>;
+  removeRecentSearch: (term: string) => void;
+  saveRecentSearch: (term: string) => void;
   toggleStar: (noteId: string) => Promise<void>;
   updateNoteTitle: (noteId: string, title: string) => Promise<void>;
   updateNoteTags: (noteId: string, tags: string[]) => Promise<void>;
@@ -165,13 +188,16 @@ function normalizeStoredQueue(raw: unknown): MemvoSyncQueueItem[] {
 }
 
 export function MemvoProvider({ children }: PropsWithChildren) {
+  const [folders, setFolders] = useState<MemvoFolder[]>([]);
   const [notes, setNotes] = useState<MemvoNote[]>([]);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [syncQueue, setSyncQueue] = useState<MemvoSyncQueueItem[]>([]);
   const [isHydrated, setIsHydrated] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [userProfile, setUserProfile] = useState<MemvoUserProfile | null>(null);
   const processingRef = useRef(false);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeUserId = userProfile?.id ?? 'local-user';
 
   const updateNote = useCallback((noteId: string, updater: (note: MemvoNote) => MemvoNote) => {
     setNotes((current) => sortNotes(current.map((note) => (note.id === noteId ? updater(note) : note))));
@@ -188,6 +214,22 @@ export function MemvoProvider({ children }: PropsWithChildren) {
   const removeNote = useCallback((noteId: string) => {
     setNotes((current) => current.filter((note) => note.id !== noteId));
   }, []);
+
+  const syncFolderToSupabase = useCallback(async (folder: MemvoFolder) => {
+    if (!isSupabaseConfigured || !isOnline) {
+      return;
+    }
+
+    await supabase.from('folders').upsert({
+      id: folder.id,
+      user_id: folder.userId,
+      name: folder.name,
+      slug: folder.slug,
+      kind: folder.kind,
+      position: folder.position,
+      updated_at: folder.updatedAt,
+    });
+  }, [isOnline]);
 
   const syncNoteToSupabase = useCallback(async (note: MemvoNote) => {
     if (!isSupabaseConfigured || !isOnline) {
@@ -299,17 +341,25 @@ export function MemvoProvider({ children }: PropsWithChildren) {
 
     const hydrate = async () => {
       try {
-        const [storedNotes, storedQueue, networkState] = await Promise.all([
+        const [storedFolders, storedNotes, storedQueue, storedRecentSearches, networkState] = await Promise.all([
+          AsyncStorage.getItem(MEMVO_FOLDERS_STORAGE_KEY),
           AsyncStorage.getItem(MEMVO_NOTES_STORAGE_KEY),
           AsyncStorage.getItem(MEMVO_QUEUE_STORAGE_KEY),
+          AsyncStorage.getItem(MEMVO_RECENT_SEARCHES_STORAGE_KEY),
           Network.getNetworkStateAsync(),
           refreshUserProfile(),
         ]);
 
         if (!isMounted) return;
 
+        setFolders(storedFolders ? normalizeStoredFolders(JSON.parse(storedFolders), activeUserId) : ensureDefaultFolders([], activeUserId));
         setNotes(storedNotes ? sortNotes(normalizeStoredNotes(JSON.parse(storedNotes))) : []);
         setSyncQueue(storedQueue ? normalizeStoredQueue(JSON.parse(storedQueue)) : []);
+        setRecentSearches(
+          storedRecentSearches
+            ? (JSON.parse(storedRecentSearches) as string[]).filter((entry): entry is string => typeof entry === 'string').slice(0, 5)
+            : [],
+        );
         setIsOnline(Boolean(networkState.isInternetReachable ?? networkState.isConnected ?? false));
       } catch (error) {
         console.error('Failed to hydrate Memvo store', error);
@@ -333,7 +383,22 @@ export function MemvoProvider({ children }: PropsWithChildren) {
         clearTimeout(retryTimerRef.current);
       }
     };
-  }, [refreshUserProfile]);
+  }, [activeUserId, refreshUserProfile]);
+
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
+    setFolders((current) => ensureDefaultFolders(current, activeUserId));
+  }, [activeUserId, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    AsyncStorage.setItem(MEMVO_FOLDERS_STORAGE_KEY, JSON.stringify(folders)).catch((error) => {
+      console.error('Failed to persist Memvo folders', error);
+    });
+  }, [folders, isHydrated]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -348,6 +413,13 @@ export function MemvoProvider({ children }: PropsWithChildren) {
       console.error('Failed to persist Memvo queue', error);
     });
   }, [isHydrated, syncQueue]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    AsyncStorage.setItem(MEMVO_RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(recentSearches)).catch((error) => {
+      console.error('Failed to persist Memvo recent searches', error);
+    });
+  }, [isHydrated, recentSearches]);
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -367,6 +439,7 @@ export function MemvoProvider({ children }: PropsWithChildren) {
           title: typeof row.title === 'string' && row.title.trim() ? row.title : note.title,
           transcript: typeof row.transcript === 'string' ? row.transcript : note.transcript,
           summary: typeof row.summary === 'string' ? row.summary : note.summary,
+          folderId: typeof row.folder_id === 'string' ? row.folder_id : note.folderId,
           actionItems: Array.isArray(row.action_items) ? row.action_items.filter((value): value is string => typeof value === 'string') : note.actionItems,
           tags: Array.isArray(row.tags) ? row.tags.filter((value): value is string => typeof value === 'string') : note.tags,
           mood: typeof row.mood === 'string' ? row.mood : note.mood,
@@ -840,7 +913,129 @@ export function MemvoProvider({ children }: PropsWithChildren) {
     await processPendingQueue();
   }, [processPendingQueue, updateQueueItem]);
 
+  const getFolderById = useCallback((folderId: string | null | undefined) => {
+    if (!folderId) {
+      return undefined;
+    }
+
+    return folders.find((folder) => folder.id === folderId);
+  }, [folders]);
+
   const getNoteById = useCallback((noteId: string) => notes.find((note) => note.id === noteId), [notes]);
+
+  const saveRecentSearchTerm = useCallback((term: string) => {
+    setRecentSearches((current) => buildRecentSearches(current, term));
+  }, []);
+
+  const removeRecentSearchTerm = useCallback((term: string) => {
+    setRecentSearches((current) => removeRecentSearch(current, term));
+  }, []);
+
+  const createFolder = useCallback(async (name: string) => {
+    const sanitized = sanitizeFolderName(name);
+    if (!sanitized) {
+      return null;
+    }
+
+    const isPro = Boolean(userProfile && (userProfile.plan === 'pro' || userProfile.plan === 'admin' || userProfile.isAdmin));
+    if (!isPro && countCustomFolders(folders) >= MEMVO_MAX_FREE_CUSTOM_FOLDERS) {
+      return null;
+    }
+
+    const existingSlugs = new Set(folders.map((folder) => folder.slug));
+    let slug = slugifyFolderName(sanitized);
+    let counter = 2;
+    while (existingSlugs.has(slug)) {
+      slug = `${slugifyFolderName(sanitized)}-${counter}`;
+      counter += 1;
+    }
+
+    const now = new Date().toISOString();
+    const folder: MemvoFolder = {
+      id: createOrganizationId('folder'),
+      userId: activeUserId,
+      name: sanitized,
+      slug,
+      kind: 'custom',
+      position: folders.length,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    setFolders((current) => ensureDefaultFolders([...current, folder], activeUserId));
+    await syncFolderToSupabase(folder);
+    return folder;
+  }, [activeUserId, folders, syncFolderToSupabase, userProfile]);
+
+  const renameFolder = useCallback(async (folderId: string, name: string) => {
+    const sanitized = sanitizeFolderName(name);
+    const target = folders.find((folder) => folder.id === folderId);
+    if (!target || target.kind !== 'custom' || !sanitized) {
+      return null;
+    }
+
+    let slug = slugifyFolderName(sanitized);
+    const existingSlugs = new Set(folders.filter((folder) => folder.id !== folderId).map((folder) => folder.slug));
+    let counter = 2;
+    while (existingSlugs.has(slug)) {
+      slug = `${slugifyFolderName(sanitized)}-${counter}`;
+      counter += 1;
+    }
+
+    const nextFolder: MemvoFolder = {
+      ...target,
+      name: sanitized,
+      slug,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setFolders((current) => current.map((folder) => (folder.id === folderId ? nextFolder : folder)));
+    await syncFolderToSupabase(nextFolder);
+    return nextFolder;
+  }, [folders, syncFolderToSupabase]);
+
+  const moveNoteToFolder = useCallback(async (noteId: string, folderId: string | null) => {
+    const target = notes.find((note) => note.id === noteId);
+    if (!target) {
+      return;
+    }
+
+    const nextNote = {
+      ...target,
+      folderId,
+      updatedAt: new Date().toISOString(),
+    };
+
+    updateNote(noteId, () => nextNote);
+    await syncNoteToSupabase(nextNote);
+  }, [notes, syncNoteToSupabase, updateNote]);
+
+  const deleteFolder = useCallback(async (folderId: string) => {
+    const target = folders.find((folder) => folder.id === folderId);
+    if (!target || target.kind !== 'custom') {
+      return;
+    }
+
+    setFolders((current) => current.filter((folder) => folder.id !== folderId));
+    const timestamp = new Date().toISOString();
+    const reassignedNotes = notes
+      .filter((note) => note.folderId === folderId)
+      .map((note) => ({
+        ...note,
+        folderId: null,
+        updatedAt: timestamp,
+      }));
+
+    if (reassignedNotes.length > 0) {
+      setNotes((current) => sortNotes(current.map((note) => reassignedNotes.find((entry) => entry.id === note.id) ?? note)));
+      await Promise.all(reassignedNotes.map((note) => syncNoteToSupabase(note)));
+    }
+
+    if (isSupabaseConfigured && isOnline) {
+      await supabase.from('notes').update({ folder_id: null }).eq('folder_id', folderId);
+      await supabase.from('folders').delete().eq('id', folderId);
+    }
+  }, [folders, isOnline, notes, syncNoteToSupabase]);
 
   const toggleStar = useCallback(async (noteId: string) => {
     const target = notes.find((note) => note.id === noteId);
@@ -951,7 +1146,9 @@ export function MemvoProvider({ children }: PropsWithChildren) {
 
   const value = useMemo(
     () => ({
+      folders,
       notes,
+      recentSearches,
       syncQueue,
       isHydrated,
       isOnline,
@@ -959,7 +1156,14 @@ export function MemvoProvider({ children }: PropsWithChildren) {
       addLocalRecording,
       processPendingQueue,
       retryQueueItem,
+      getFolderById,
       getNoteById,
+      createFolder,
+      renameFolder,
+      deleteFolder,
+      moveNoteToFolder,
+      removeRecentSearch: removeRecentSearchTerm,
+      saveRecentSearch: saveRecentSearchTerm,
       toggleStar,
       updateNoteTitle,
       updateNoteTags,
@@ -967,13 +1171,22 @@ export function MemvoProvider({ children }: PropsWithChildren) {
     }),
     [
       addLocalRecording,
+      createFolder,
+      deleteFolder,
       deleteNote,
+      folders,
+      getFolderById,
       getNoteById,
       isHydrated,
       isOnline,
+      moveNoteToFolder,
       notes,
       processPendingQueue,
+      recentSearches,
+      removeRecentSearchTerm,
+      renameFolder,
       retryQueueItem,
+      saveRecentSearchTerm,
       syncQueue,
       toggleStar,
       updateNoteTags,

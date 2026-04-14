@@ -56,3 +56,9 @@
 - [x] Implement note actions for star, delete, transcript copy, summary copy, and .txt export with correct Pro-only PDF disabled state
 - [x] Ensure realtime note updates keep the home feed and note detail screen in sync for create, processing, star, and delete changes
 - [x] Validate Task 5 against the provided acceptance checklist with TypeScript, tests, and project health checks
+- [x] Task 6: build search screen with debounced full-text search, snippet highlighting, recent searches, and combinable tag/date/folder filters
+- [x] Task 6: add folder data model, default folders, folder limits by plan, folder management UI, and note move/remove flows
+- [x] Task 6: add tag editing and suggested tags on note detail, plus tag-based filtering from home and search
+- [x] Task 6: add starred folder behavior and ensure star toggles stay in sync across home, detail, and library views
+- [x] Task 6: add library timeline view grouped by date with compact cards and sticky section headers
+- [x] Task 6: validate Task 6 behavior with TypeScript, Vitest, and project health checks

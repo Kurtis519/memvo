@@ -38,7 +38,9 @@ export interface MemvoFolder {
   id: string;
   userId: string;
   name: string;
+  slug: string;
   kind: MemvoFolderKind;
+  position: number;
   createdAt: string;
   updatedAt: string;
 }

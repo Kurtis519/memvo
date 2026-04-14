@@ -134,7 +134,7 @@ begin
     (new.id, 'Starred', 'starred', 'system', 1),
     (new.id, 'Meetings', 'meetings', 'system', 2),
     (new.id, 'Ideas', 'ideas', 'system', 3),
-    (new.id, 'Journal', 'journal', 'system', 4)
+    (new.id, 'Journals', 'journals', 'system', 4)
   on conflict do nothing;
 
   return new;
@@ -248,6 +248,95 @@ alter table public.sync_queue
 
 comment on column public.notes.mood is 'Optional journal-style mood inferred by Claude after transcription.';
 comment on column public.notes.ai_processing_status is 'Tracks whether Claude analysis is waiting, running, complete, failed, or skipped.';
+
+alter table public.notes
+  add column if not exists search_vector tsvector;
+
+create or replace function public.notes_search_vector_update()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.search_vector :=
+    setweight(to_tsvector('english', coalesce(new.title, '')), 'A')
+    || setweight(to_tsvector('english', coalesce(new.transcript, '')), 'B')
+    || setweight(to_tsvector('english', coalesce(new.summary, '')), 'B')
+    || setweight(to_tsvector('english', coalesce((select string_agg(value::text, ' ') from jsonb_array_elements_text(coalesce(new.tags, '[]'::jsonb)) as value), '')), 'C');
+  return new;
+end;
+$$;
+
+drop trigger if exists notes_search_vector_before_write on public.notes;
+create trigger notes_search_vector_before_write
+  before insert or update of title, transcript, summary, tags on public.notes
+  for each row execute procedure public.notes_search_vector_update();
+
+update public.notes
+set search_vector =
+  setweight(to_tsvector('english', coalesce(title, '')), 'A')
+  || setweight(to_tsvector('english', coalesce(transcript, '')), 'B')
+  || setweight(to_tsvector('english', coalesce(summary, '')), 'B')
+  || setweight(to_tsvector('english', coalesce((select string_agg(value::text, ' ') from jsonb_array_elements_text(coalesce(tags, '[]'::jsonb)) as value), '')), 'C')
+where search_vector is null;
+
+create index if not exists notes_search_vector_idx on public.notes using gin (search_vector);
+create index if not exists notes_recorded_at_idx on public.notes (recorded_at desc);
+create index if not exists notes_folder_id_idx on public.notes (folder_id);
+
+create or replace function public.search_notes(
+  search_term text,
+  filter_tag text default null,
+  filter_folder_id uuid default null,
+  start_at timestamptz default null,
+  end_at timestamptz default null
+)
+returns table (
+  id uuid,
+  title text,
+  transcript text,
+  summary text,
+  tags jsonb,
+  folder_id uuid,
+  recorded_at timestamptz,
+  is_starred boolean,
+  rank real
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select
+    n.id,
+    n.title,
+    n.transcript,
+    n.summary,
+    n.tags,
+    n.folder_id,
+    n.recorded_at,
+    n.is_starred,
+    ts_rank_cd(n.search_vector, websearch_to_tsquery('english', search_term)) as rank
+  from public.notes n
+  where n.user_id = auth.uid()
+    and (
+      search_term is null
+      or btrim(search_term) = ''
+      or n.search_vector @@ websearch_to_tsquery('english', search_term)
+    )
+    and (
+      filter_tag is null
+      or exists (
+        select 1
+        from jsonb_array_elements_text(coalesce(n.tags, '[]'::jsonb)) as tag_value
+        where lower(tag_value) = lower(filter_tag)
+      )
+    )
+    and (filter_folder_id is null or n.folder_id = filter_folder_id)
+    and (start_at is null or n.recorded_at >= start_at)
+    and (end_at is null or n.recorded_at <= end_at)
+  order by rank desc nulls last, n.recorded_at desc;
+$$;
+
+comment on function public.search_notes is 'Searches Memvo notes by full-text rank across title, transcript, summary, and tags with optional folder and date filters.';
 
 create or replace function public.invoke_process_note_with_ai()
 returns trigger
