@@ -1,11 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Network from 'expo-network';
 import * as Notifications from 'expo-notifications';
-import {
-  ExpoSpeechRecognitionModule,
-  addSpeechRecognitionListener,
-  supportsOnDeviceRecognition,
-} from '@jamsch/expo-speech-recognition';
+import { Platform } from 'react-native';
 import {
   createContext,
   useCallback,
@@ -23,6 +19,7 @@ import type {
   MemvoSyncQueueItem,
   MemvoUserProfile,
 } from '@/lib/memvo-domain';
+import { resolveSpeechRecognitionApi, type SpeechRecognitionApi } from '@/lib/memvo-speech';
 import {
   MEMVO_NOTES_STORAGE_KEY,
   MEMVO_QUEUE_STORAGE_KEY,
@@ -71,6 +68,21 @@ type WhisperFunctionResult = {
 };
 
 const MemvoContext = createContext<MemvoContextValue | null>(null);
+
+let cachedSpeechRecognitionApi: SpeechRecognitionApi | null | undefined;
+
+function getSpeechRecognitionApi(): SpeechRecognitionApi | null {
+  if (cachedSpeechRecognitionApi !== undefined) {
+    return cachedSpeechRecognitionApi;
+  }
+
+  cachedSpeechRecognitionApi = resolveSpeechRecognitionApi(
+    Platform.OS,
+    () => require('@jamsch/expo-speech-recognition') as SpeechRecognitionApi,
+  );
+
+  return cachedSpeechRecognitionApi;
+}
 
 function sortNotes(notes: MemvoNote[]) {
   return [...notes].sort((a, b) => Date.parse(b.recordedAt) - Date.parse(a.recordedAt));
@@ -458,7 +470,9 @@ export function MemvoProvider({ children }: PropsWithChildren) {
   }, []);
 
   const transcribeOnDevice = useCallback(async (note: MemvoNote) => {
-    if (!supportsOnDeviceRecognition()) {
+    const speechRecognitionApi = getSpeechRecognitionApi();
+
+    if (!speechRecognitionApi?.supportsOnDeviceRecognition?.()) {
       throw new Error(MEMVO_UNSUPPORTED_DEVICE_MESSAGE);
     }
 
@@ -466,7 +480,7 @@ export function MemvoProvider({ children }: PropsWithChildren) {
       let transcript = '';
       let settled = false;
       const subscriptions = [
-        addSpeechRecognitionListener('result', (event: any) => {
+        speechRecognitionApi.addSpeechRecognitionListener('result', (event: any) => {
           const nextText = Array.isArray(event.results)
             ? event.results
                 .flatMap((result: any) => (Array.isArray(result?.transcript) ? result.transcript : [result?.transcript]))
@@ -487,7 +501,7 @@ export function MemvoProvider({ children }: PropsWithChildren) {
             }));
           }
         }),
-        addSpeechRecognitionListener('error', (event: any) => {
+        speechRecognitionApi.addSpeechRecognitionListener('error', (event: any) => {
           if (settled) {
             return;
           }
@@ -495,7 +509,7 @@ export function MemvoProvider({ children }: PropsWithChildren) {
           subscriptions.forEach((subscription) => subscription.remove());
           reject(new Error(event?.message || MEMVO_UNSUPPORTED_DEVICE_MESSAGE));
         }),
-        addSpeechRecognitionListener('end', () => {
+        speechRecognitionApi.addSpeechRecognitionListener('end', () => {
           if (settled) {
             return;
           }
@@ -506,7 +520,7 @@ export function MemvoProvider({ children }: PropsWithChildren) {
       ];
 
       try {
-        ExpoSpeechRecognitionModule.start({
+        speechRecognitionApi.ExpoSpeechRecognitionModule.start({
           lang: 'en-US',
           interimResults: true,
           continuous: false,

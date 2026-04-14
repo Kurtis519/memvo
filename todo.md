@@ -46,3 +46,6 @@
 - [x] Add retry-on-invalid-JSON behavior, short-transcript fallback behavior, transcript truncation, and server-side error logging for Claude processing
 - [x] Update the home feed to show an Analysing state, Claude-generated title/summary preview, tags, and action-item count in real time
 - [x] Validate Task 4 end-to-end against the specification, including journal mood detection and meeting action-item extraction
+- [x] Investigate why the Expo previewer is failing to load or stay stable
+- [x] Fix the underlying Expo preview/runtime issue without regressing current Memvo features
+- [x] Re-validate preview health after the fix and confirm the current working URL
