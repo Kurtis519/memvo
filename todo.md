@@ -49,3 +49,10 @@
 - [x] Investigate why the Expo previewer is failing to load or stay stable
 - [x] Fix the underlying Expo preview/runtime issue without regressing current Memvo features
 - [x] Re-validate preview health after the fix and confirm the current working URL
+- [x] Read the relevant Expo docs for audio playback, sharing, clipboard, and file export needed by Task 5
+- [x] Redesign the home feed with greeting header, search entry point, empty state, floating record button, note badges, pull-to-refresh, swipe delete, and long-press actions
+- [x] Add Pro-only memory-lite clusters that group notes by shared tags and filter the home feed
+- [x] Build the note detail screen with inline title editing, mood pill, collapsible summary, action items, editable tags, transcript interactions, and conditional playback bar
+- [x] Implement note actions for star, delete, transcript copy, summary copy, and .txt export with correct Pro-only PDF disabled state
+- [x] Ensure realtime note updates keep the home feed and note detail screen in sync for create, processing, star, and delete changes
+- [x] Validate Task 5 against the provided acceptance checklist with TypeScript, tests, and project health checks

@@ -59,6 +59,7 @@ export interface MemvoNote {
   actionItems: string[];
   tags: string[];
   localOnly: boolean;
+  isStarred: boolean;
   transcriptionEngine: MemvoTranscriptionEngine | null;
   languageDetected: string | null;
   transcriptionPreview: string | null;

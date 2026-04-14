@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Network from 'expo-network';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
@@ -59,6 +60,11 @@ type MemvoContextValue = {
   addLocalRecording: (input: RecordingSaveInput) => Promise<MemvoNote>;
   processPendingQueue: () => Promise<void>;
   retryQueueItem: (queueId: string) => Promise<void>;
+  getNoteById: (noteId: string) => MemvoNote | undefined;
+  toggleStar: (noteId: string) => Promise<void>;
+  updateNoteTitle: (noteId: string, title: string) => Promise<void>;
+  updateNoteTags: (noteId: string, tags: string[]) => Promise<void>;
+  deleteNote: (noteId: string) => Promise<void>;
 };
 
 type WhisperFunctionResult = {
@@ -115,6 +121,7 @@ function normalizeStoredNotes(raw: unknown): MemvoNote[] {
       actionItems: current.actionItems ?? [],
       tags: current.tags ?? [],
       localOnly: current.localOnly ?? true,
+      isStarred: current.isStarred ?? false,
       transcriptionEngine: current.transcriptionEngine ?? null,
       languageDetected: current.languageDetected ?? null,
       transcriptionPreview: current.transcriptionPreview ?? null,
@@ -178,6 +185,10 @@ export function MemvoProvider({ children }: PropsWithChildren) {
     setSyncQueue((current) => current.filter((item) => item.id !== queueId));
   }, []);
 
+  const removeNote = useCallback((noteId: string) => {
+    setNotes((current) => current.filter((note) => note.id !== noteId));
+  }, []);
+
   const syncNoteToSupabase = useCallback(async (note: MemvoNote) => {
     if (!isSupabaseConfigured || !isOnline) {
       return;
@@ -195,6 +206,7 @@ export function MemvoProvider({ children }: PropsWithChildren) {
       action_items: note.actionItems,
       tags: note.tags,
       mood: note.mood,
+      is_starred: note.isStarred,
       sync_status: note.syncStatus,
       transcription_engine: note.transcriptionEngine,
       language_detected: note.languageDetected,
@@ -358,6 +370,7 @@ export function MemvoProvider({ children }: PropsWithChildren) {
           actionItems: Array.isArray(row.action_items) ? row.action_items.filter((value): value is string => typeof value === 'string') : note.actionItems,
           tags: Array.isArray(row.tags) ? row.tags.filter((value): value is string => typeof value === 'string') : note.tags,
           mood: typeof row.mood === 'string' ? row.mood : note.mood,
+          isStarred: typeof row.is_starred === 'boolean' ? row.is_starred : note.isStarred,
           syncStatus:
             row.sync_status === 'pending' || row.sync_status === 'uploading' || row.sync_status === 'transcribing' || row.sync_status === 'complete' || row.sync_status === 'failed'
               ? row.sync_status
@@ -758,6 +771,7 @@ export function MemvoProvider({ children }: PropsWithChildren) {
       actionItems: [],
       tags: [],
       localOnly: true,
+      isStarred: false,
       transcriptionEngine: null,
       languageDetected: null,
       transcriptionPreview: null,
@@ -826,6 +840,83 @@ export function MemvoProvider({ children }: PropsWithChildren) {
     await processPendingQueue();
   }, [processPendingQueue, updateQueueItem]);
 
+  const getNoteById = useCallback((noteId: string) => notes.find((note) => note.id === noteId), [notes]);
+
+  const toggleStar = useCallback(async (noteId: string) => {
+    const target = notes.find((note) => note.id === noteId);
+    if (!target) {
+      return;
+    }
+
+    const nextNote = {
+      ...target,
+      isStarred: !target.isStarred,
+      updatedAt: new Date().toISOString(),
+    };
+
+    updateNote(noteId, () => nextNote);
+    await syncNoteToSupabase(nextNote);
+  }, [notes, syncNoteToSupabase, updateNote]);
+
+  const updateNoteTitle = useCallback(async (noteId: string, title: string) => {
+    const trimmed = title.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    const target = notes.find((note) => note.id === noteId);
+    if (!target || target.title === trimmed) {
+      return;
+    }
+
+    const nextNote = {
+      ...target,
+      title: trimmed,
+      updatedAt: new Date().toISOString(),
+    };
+
+    updateNote(noteId, () => nextNote);
+    await syncNoteToSupabase(nextNote);
+  }, [notes, syncNoteToSupabase, updateNote]);
+
+  const updateNoteTags = useCallback(async (noteId: string, tags: string[]) => {
+    const target = notes.find((note) => note.id === noteId);
+    if (!target) {
+      return;
+    }
+
+    const nextNote = {
+      ...target,
+      tags: tags.map((tag) => tag.trim()).filter(Boolean),
+      updatedAt: new Date().toISOString(),
+    };
+
+    updateNote(noteId, () => nextNote);
+    await syncNoteToSupabase(nextNote);
+  }, [notes, syncNoteToSupabase, updateNote]);
+
+  const deleteNote = useCallback(async (noteId: string) => {
+    const target = notes.find((note) => note.id === noteId);
+    if (!target) {
+      return;
+    }
+
+    removeNote(noteId);
+    setSyncQueue((current) => current.filter((item) => item.noteId !== noteId));
+
+    if (target.audioPath) {
+      const info = await FileSystem.getInfoAsync(target.audioPath).catch(() => null);
+      if (info?.exists) {
+        await FileSystem.deleteAsync(target.audioPath, { idempotent: true }).catch(() => undefined);
+      }
+    }
+
+    if (isSupabaseConfigured && isOnline) {
+      await supabase.from('sync_queue').delete().eq('note_id', noteId);
+      await supabase.from('notes').delete().eq('id', noteId);
+    }
+  }, [isOnline, notes, removeNote]);
+
   useEffect(() => {
     if (!isHydrated || !isOnline) {
       return;
@@ -868,8 +959,27 @@ export function MemvoProvider({ children }: PropsWithChildren) {
       addLocalRecording,
       processPendingQueue,
       retryQueueItem,
+      getNoteById,
+      toggleStar,
+      updateNoteTitle,
+      updateNoteTags,
+      deleteNote,
     }),
-    [addLocalRecording, isHydrated, isOnline, notes, processPendingQueue, retryQueueItem, syncQueue, userProfile],
+    [
+      addLocalRecording,
+      deleteNote,
+      getNoteById,
+      isHydrated,
+      isOnline,
+      notes,
+      processPendingQueue,
+      retryQueueItem,
+      syncQueue,
+      toggleStar,
+      updateNoteTags,
+      updateNoteTitle,
+      userProfile,
+    ],
   );
 
   return <MemvoContext.Provider value={value}>{children}</MemvoContext.Provider>;
