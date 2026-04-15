@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -13,7 +13,12 @@ import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 import { ScreenContainer } from '@/components/screen-container';
 import { useMemvo } from '@/lib/memvo-store';
+import {
+  dismissReferralBanner,
+  readReferralBannerDismissed,
+} from '@/lib/memvo-referrals';
 import { buildFeedTimestampLabel, formatDuration } from '@/lib/memvo-recording-utils';
+import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import {
   getNoteProcessingLabel,
   getStatusTone,
@@ -105,6 +110,53 @@ export default function HomeScreen() {
     userProfile,
   } = useMemvo();
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [referralCount, setReferralCount] = useState(0);
+  const [referralPromptDismissed, setReferralPromptDismissed] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const hydrateReferralPrompt = async () => {
+      const dismissed = await readReferralBannerDismissed();
+      if (isMounted) {
+        setReferralPromptDismissed(dismissed);
+      }
+    };
+
+    void hydrateReferralPrompt();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadReferralCount = async () => {
+      if (!isSupabaseConfigured || !userProfile?.id) {
+        if (isMounted) {
+          setReferralCount(0);
+        }
+        return;
+      }
+
+      const { count } = await supabase
+        .from('referrals')
+        .select('id', { count: 'exact', head: true })
+        .eq('referrer_user_id', userProfile.id);
+
+      if (isMounted) {
+        setReferralCount(count ?? 0);
+      }
+    };
+
+    void loadReferralCount();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [userProfile?.id]);
 
   const displayName = useMemo(() => getDisplayName(userProfile?.email), [userProfile?.email]);
   const initials = useMemo(() => getInitials(userProfile?.email), [userProfile?.email]);
@@ -132,6 +184,11 @@ export default function HomeScreen() {
     if (!selectedTag) return notes;
     return notes.filter((note) => note.tags.some((tag) => tag.toLowerCase() === selectedTag.toLowerCase()));
   }, [notes, selectedTag]);
+
+  const shouldShowReferralPrompt = useMemo(() => {
+    const isEligibleFreeUser = userProfile?.plan === 'free' && !userProfile?.manualPro && !userProfile?.isAdmin;
+    return Boolean(isEligibleFreeUser) && notes.length >= 3 && referralCount === 0 && !referralPromptDismissed;
+  }, [notes.length, referralCount, referralPromptDismissed, userProfile?.isAdmin, userProfile?.manualPro, userProfile?.plan]);
 
   const confirmDelete = (noteId: string) => {
     Alert.alert('Delete note?', 'This removes the note from Memvo and deletes any saved local audio for it.', [
@@ -216,6 +273,37 @@ export default function HomeScreen() {
             >
               <Text className="text-sm text-muted">Search notes, tags, and folders...</Text>
             </TouchableOpacity>
+
+            {shouldShowReferralPrompt ? (
+              <View className="rounded-[28px] border border-border bg-surface p-5">
+                <View className="flex-row items-start justify-between gap-4">
+                  <View className="flex-1 gap-2">
+                    <Text className="text-lg font-semibold text-foreground">Invite a friend. Get 30 bonus minutes.</Text>
+                    <Text className="text-sm leading-6 text-muted">
+                      Share your personal Memvo link and both of you get extra free time as soon as they join.
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    activeOpacity={0.75}
+                    onPress={() => {
+                      void dismissReferralBanner();
+                      setReferralPromptDismissed(true);
+                    }}
+                  >
+                    <Text className="text-sm font-semibold text-muted">Later</Text>
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  activeOpacity={0.85}
+                  onPress={() => router.push('/invite')}
+                  className="mt-4 self-start rounded-full bg-primary px-4 py-3"
+                >
+                  <Text className="text-sm font-semibold text-white">Open invite dashboard</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
 
             {selectedTag ? (
               <View className="flex-row items-center gap-2 rounded-2xl bg-[#EEF8F4] px-4 py-3">

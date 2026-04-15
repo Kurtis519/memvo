@@ -1,6 +1,7 @@
 import { ThemedView } from "@/components/themed-view";
 import * as Api from "@/lib/_core/api";
 import * as Auth from "@/lib/_core/auth";
+import { processPendingReferralForCurrentUser } from "@/lib/memvo-referrals";
 import * as Linking from "expo-linking";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
@@ -59,6 +60,7 @@ export default function OAuthCallback() {
             }
           }
 
+          await processPendingReferralForCurrentUser();
           setStatus("success");
           console.log("[OAuth] Web authentication successful, redirecting to home...");
           setTimeout(() => {
@@ -156,6 +158,7 @@ export default function OAuthCallback() {
           console.log("[OAuth] Session token stored successfully");
           // User info is already in the OAuth callback response
           // No need to fetch from API
+          await processPendingReferralForCurrentUser();
           setStatus("success");
           console.log("[OAuth] Redirecting to home...");
           setTimeout(() => {
@@ -209,6 +212,7 @@ export default function OAuthCallback() {
             console.log("[OAuth] No user data in result");
           }
 
+          await processPendingReferralForCurrentUser();
           setStatus("success");
           console.log("[OAuth] Authentication successful, redirecting to home...");
 

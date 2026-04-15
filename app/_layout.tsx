@@ -81,6 +81,8 @@ export default function RootLayout() {
           <MemvoProvider>
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="invite" />
+              <Stack.Screen name="join" />
               <Stack.Screen name="oauth/callback" />
             </Stack>
             <StatusBar style="auto" />

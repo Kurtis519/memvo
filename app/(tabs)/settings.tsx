@@ -1,27 +1,40 @@
-import { ScrollView, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 
 import { ScreenContainer } from '@/components/screen-container';
+import { useMemvo } from '@/lib/memvo-store';
 
 const sections = [
   {
     title: 'Account',
-    rows: ['Name and email', 'Subscription status', 'Billing history'],
-  },
-  {
-    title: 'Invite friends & earn minutes',
-    rows: ['Referral code', 'Share message', 'Bonus minutes earned'],
+    rows: [
+      { label: 'Name and email', helper: 'Signed-in identity and contact details' },
+      { label: 'Subscription status', helper: 'Current Memvo plan and limits' },
+      { label: 'Billing history', helper: 'Receipts and renewal history' },
+    ],
   },
   {
     title: 'Privacy',
-    rows: ['Audio deletion policy', 'Data export', 'Delete account'],
+    rows: [
+      { label: 'Audio deletion policy', helper: 'How long local recordings are kept' },
+      { label: 'Data export', helper: 'Download your notes and transcripts' },
+      { label: 'Delete account', helper: 'Permanently remove your profile and notes' },
+    ],
   },
   {
     title: 'App',
-    rows: ['Notifications', 'Offline sync status', 'Support and FAQ'],
+    rows: [
+      { label: 'Notifications', helper: 'Control reminders and processing alerts' },
+      { label: 'Offline sync status', helper: 'Review pending uploads and retries' },
+      { label: 'Support and FAQ', helper: 'Get help with Memvo' },
+    ],
   },
-];
+] as const;
 
 export default function SettingsScreen() {
+  const { userProfile } = useMemvo();
+  const bonusMinutes = Math.round(userProfile?.bonusMinutes ?? 0);
+
   return (
     <ScreenContainer className="bg-background px-5 pt-3">
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
@@ -33,14 +46,42 @@ export default function SettingsScreen() {
             </Text>
           </View>
 
+          <TouchableOpacity
+            accessibilityRole="button"
+            activeOpacity={0.85}
+            onPress={() => router.push('/invite')}
+            className="rounded-[28px] border border-border bg-surface p-5"
+          >
+            <View className="flex-row items-start justify-between gap-4">
+              <View className="flex-1 gap-2">
+                <Text className="text-lg font-semibold text-foreground">Invite friends & earn minutes</Text>
+                <Text className="text-sm leading-6 text-muted">
+                  Share your referral link, track bonuses, and unlock extra free minutes each month.
+                </Text>
+              </View>
+              <View className="rounded-full bg-[#EEF8F4] px-3 py-1.5">
+                <Text className="text-xs font-semibold text-primary">+{bonusMinutes} min</Text>
+              </View>
+            </View>
+            <View className="mt-4 rounded-2xl bg-background px-4 py-4">
+              <Text className="text-sm font-medium text-foreground">
+                {userProfile?.referralCode ?? 'Referral code will appear here once your profile is ready.'}
+              </Text>
+              <Text className="mt-2 text-sm text-muted">Open your invite dashboard</Text>
+            </View>
+          </TouchableOpacity>
+
           {sections.map((section) => (
             <View key={section.title} className="rounded-2xl border border-border bg-surface p-4">
               <Text className="text-base font-semibold text-foreground">{section.title}</Text>
               <View className="mt-3 gap-3">
                 {section.rows.map((row) => (
-                  <View key={row} className="flex-row items-center justify-between">
-                    <Text className="text-sm text-foreground">{row}</Text>
-                    <Text className="text-base text-muted">›</Text>
+                  <View key={row.label} className="rounded-2xl bg-background px-4 py-4">
+                    <View className="flex-row items-center justify-between gap-3">
+                      <Text className="text-sm font-medium text-foreground">{row.label}</Text>
+                      <Text className="text-base text-muted">›</Text>
+                    </View>
+                    <Text className="mt-1 text-sm leading-6 text-muted">{row.helper}</Text>
                   </View>
                 ))}
               </View>

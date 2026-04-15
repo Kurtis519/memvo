@@ -287,6 +287,8 @@ export function MemvoProvider({ children }: PropsWithChildren) {
         plan: 'free',
         isAdmin: false,
         manualPro: false,
+        referralCode: null,
+        referredByCode: null,
         bonusMinutes: 0,
         minutesUsedThisMonth: 0,
         createdAt: new Date().toISOString(),
@@ -303,8 +305,8 @@ export function MemvoProvider({ children }: PropsWithChildren) {
     }
 
     const { data } = await supabase
-      .from('users')
-      .select('id,email,plan,is_admin,manual_pro,bonus_minutes,minutes_used_this_month,created_at,updated_at')
+      .from('user_profiles')
+      .select('id,email,plan,is_admin,manual_pro,referral_code,referred_by_code,bonus_minutes,minutes_used_this_month,created_at,updated_at')
       .eq('id', authUser.id)
       .single();
 
@@ -315,6 +317,8 @@ export function MemvoProvider({ children }: PropsWithChildren) {
         plan: 'free',
         isAdmin: false,
         manualPro: false,
+        referralCode: null,
+        referredByCode: null,
         bonusMinutes: 0,
         minutesUsedThisMonth: 0,
         createdAt: new Date().toISOString(),
@@ -329,6 +333,8 @@ export function MemvoProvider({ children }: PropsWithChildren) {
       plan: normalizePlan(data.plan, Boolean(data.is_admin)),
       isAdmin: Boolean(data.is_admin),
       manualPro: Boolean(data.manual_pro),
+      referralCode: data.referral_code ?? null,
+      referredByCode: data.referred_by_code ?? null,
       bonusMinutes: Number(data.bonus_minutes ?? 0),
       minutesUsedThisMonth: Number(data.minutes_used_this_month ?? 0),
       createdAt: data.created_at,
@@ -519,7 +525,7 @@ export function MemvoProvider({ children }: PropsWithChildren) {
 
     if (isSupabaseConfigured && userProfile.id) {
       await supabase
-        .from('users')
+        .from('user_profiles')
         .update({ minutes_used_this_month: nextValue, updated_at: new Date().toISOString() })
         .eq('id', userProfile.id);
     }

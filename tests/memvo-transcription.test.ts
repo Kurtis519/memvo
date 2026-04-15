@@ -29,6 +29,7 @@ describe('memvo transcription helpers', () => {
 
   it('adds bonus minutes to the free allowance and enforces the cap', () => {
     expect(getAllowedFreeMinutes({ bonusMinutes: 30 })).toBe(150);
+    expect(getAllowedFreeMinutes({ bonusMinutes: 120 })).toBe(240);
     expect(
       hasRemainingFreeMinutes(
         {

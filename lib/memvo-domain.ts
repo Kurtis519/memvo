@@ -23,10 +23,19 @@ export interface MemvoUserProfile {
   plan: MemvoPlan;
   isAdmin: boolean;
   manualPro: boolean;
+  referralCode: string | null;
+  referredByCode: string | null;
   bonusMinutes: number;
   minutesUsedThisMonth: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface MemvoReferralStats {
+  friendsReferred: number;
+  bonusMinutesEarned: number;
+  minutesUsedThisMonth: number;
+  totalAvailableThisMonth: number;
 }
 
 export interface MemvoPlanCheckResult {
@@ -93,8 +102,9 @@ export interface MemvoSyncQueueItem {
 export interface MemvoReferral {
   id: string;
   referrerUserId: string;
-  referredEmail: string;
-  status: 'pending' | 'accepted' | 'rewarded';
+  referredUserId: string | null;
+  referralCode: string;
+  bonusMinutesAwarded: number;
   createdAt: string;
   updatedAt: string;
 }

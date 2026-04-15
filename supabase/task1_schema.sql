@@ -69,9 +69,18 @@ create table if not exists public.referrals (
   referral_code text not null,
   status public.memvo_referral_status not null default 'pending',
   rewarded_minutes integer not null default 0,
+  bonus_minutes_awarded integer not null default 30,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
+
+alter table public.referrals
+  add column if not exists bonus_minutes_awarded integer not null default 30;
+
+create unique index if not exists referrals_referred_user_id_unique on public.referrals (referred_user_id)
+where referred_user_id is not null;
+
+create index if not exists user_profiles_referral_code_idx on public.user_profiles (referral_code);
 
 create or replace function public.set_updated_at()
 returns trigger
@@ -80,6 +89,34 @@ as $$
 begin
   new.updated_at = timezone('utc', now());
   return new;
+end;
+$$;
+
+create or replace function public.generate_referral_code_candidate()
+returns text
+language sql
+as $$
+  select 'MEMVO-' || string_agg(substr('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', 1 + floor(random() * 36)::integer, 1), '')
+  from generate_series(1, 6);
+$$;
+
+create or replace function public.generate_unique_referral_code()
+returns text
+language plpgsql
+as $$
+declare
+  candidate text;
+begin
+  loop
+    candidate := public.generate_referral_code_candidate();
+    exit when not exists (
+      select 1
+      from public.user_profiles
+      where referral_code = candidate
+    );
+  end loop;
+
+  return candidate;
 end;
 $$;
 
@@ -106,7 +143,7 @@ begin
     new.email,
     coalesce(new.raw_user_meta_data ->> 'full_name', new.raw_user_meta_data ->> 'name'),
     new.raw_user_meta_data ->> 'avatar_url',
-    encode(gen_random_bytes(6), 'hex'),
+    public.generate_unique_referral_code(),
     case when lower(coalesce(new.email, '')) = configured_admin_email then true else false end,
     case when lower(coalesce(new.email, '')) = configured_admin_email then 'admin'::public.memvo_plan else 'free'::public.memvo_plan end
   )
@@ -216,7 +253,102 @@ with check (
   )
 );
 
+update public.user_profiles
+set referral_code = public.generate_unique_referral_code()
+where referral_code is null
+  or referral_code !~ '^MEMVO-[A-Z0-9]{6}$';
+
+create or replace function public.award_referral_bonus(
+  input_referrer_code text,
+  input_new_user_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  normalized_referrer_code text := upper(btrim(coalesce(input_referrer_code, '')));
+  referrer_id uuid;
+  new_user_id uuid;
+  referral_bonus integer := 30;
+  created_referral_id uuid;
+begin
+  if normalized_referrer_code = '' then
+    return jsonb_build_object('success', false, 'error', 'Referral code is required.');
+  end if;
+
+  select id
+  into referrer_id
+  from public.user_profiles
+  where referral_code = normalized_referrer_code
+  limit 1;
+
+  if referrer_id is null then
+    return jsonb_build_object('success', false, 'error', 'Referral code not found.');
+  end if;
+
+  select id
+  into new_user_id
+  from public.user_profiles
+  where id = input_new_user_id
+  limit 1;
+
+  if new_user_id is null then
+    return jsonb_build_object('success', false, 'error', 'New user profile not found.');
+  end if;
+
+  if referrer_id = new_user_id then
+    return jsonb_build_object('success', false, 'error', 'Self-referral is not allowed.');
+  end if;
+
+  if exists (
+    select 1
+    from public.referrals
+    where referred_user_id = new_user_id
+  ) then
+    return jsonb_build_object('success', false, 'error', 'Referral has already been processed for this user.');
+  end if;
+
+  insert into public.referrals (
+    referrer_user_id,
+    referred_user_id,
+    referral_code,
+    status,
+    rewarded_minutes,
+    bonus_minutes_awarded
+  )
+  values (
+    referrer_id,
+    new_user_id,
+    normalized_referrer_code,
+    'rewarded',
+    referral_bonus,
+    referral_bonus
+  )
+  returning id into created_referral_id;
+
+  update public.user_profiles
+  set bonus_minutes = public.user_profiles.bonus_minutes + referral_bonus,
+      updated_at = timezone('utc', now())
+  where id = referrer_id;
+
+  update public.user_profiles
+  set bonus_minutes = public.user_profiles.bonus_minutes + referral_bonus,
+      referred_by_code = normalized_referrer_code,
+      updated_at = timezone('utc', now())
+  where id = new_user_id;
+
+  return jsonb_build_object(
+    'success', true,
+    'referral_id', created_referral_id,
+    'bonus_minutes_awarded', referral_bonus
+  );
+end;
+$$;
+
 comment on function public.handle_new_user_profile is 'Reads app.settings.memvo_admin_email to auto-assign the Memvo owner account admin access.';
+comment on function public.award_referral_bonus is 'Awards Memvo referral bonus minutes exactly once for an eligible new user.';
 comment on table public.sync_queue is 'Tracks offline recordings that still need upload, transcription, or retry handling.';
 
 -- Task 4: Claude post-transcription note processing

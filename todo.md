@@ -62,3 +62,10 @@
 - [x] Task 6: add starred folder behavior and ensure star toggles stay in sync across home, detail, and library views
 - [x] Task 6: add library timeline view grouped by date with compact cards and sticky section headers
 - [x] Task 6: validate Task 6 behavior with TypeScript, Vitest, and project health checks
+- [x] Task 7: confirm and backfill unique referral codes for all users through database trigger and migration-safe SQL
+- [x] Task 7: add referral deep-link handling, temporary referral-code persistence, and signup handoff flow
+- [x] Task 7: build secure process-referral edge function and enforce one-time referral rules plus self-referral blocking
+- [x] Task 7: add Invite Friends screen with referral code display, copy/share actions, private referral stats, and minutes summary
+- [x] Task 7: confirm free-tier transcription minute checks include bonus minutes correctly
+- [x] Task 7: add dismissible home-feed referral banner for eligible free users
+- [x] Task 7: validate Task 7 end-to-end, including referral processing safeguards and bonus-minute accounting
