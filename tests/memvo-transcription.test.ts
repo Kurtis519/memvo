@@ -5,6 +5,7 @@ import {
   MEMVO_ANALYSING_LABEL,
   MEMVO_FREE_LIMIT_MESSAGE,
   MEMVO_MAX_TRANSCRIPTION_RETRIES,
+  MEMVO_PREVIEW_DEFERRED_MESSAGE,
   buildEngineSummary,
   buildNextRetryAt,
   buildTranscriptionFailureMessage,
@@ -15,6 +16,7 @@ import {
   hasRemainingFreeMinutes,
   normalizeLanguageBadge,
   normalizePlan,
+  resolveTranscriptionMode,
   shouldRetry,
   shouldShowRetryNotification,
 } from '../lib/memvo-transcription';
@@ -117,6 +119,13 @@ describe('memvo transcription helpers', () => {
     ).toBe(false);
   });
 
+  it('resolves Expo Go compatible transcription modes for free and pro users', () => {
+    expect(resolveTranscriptionMode('free', true)).toBe('on-device');
+    expect(resolveTranscriptionMode('free', false)).toBe('deferred');
+    expect(resolveTranscriptionMode('pro', false)).toBe('whisper');
+    expect(resolveTranscriptionMode('admin', false)).toBe('whisper');
+  });
+
   it('builds user-facing status and failure labels for transcription progress', () => {
     expect(
       getNoteProcessingLabel({
@@ -145,6 +154,7 @@ describe('memvo transcription helpers', () => {
         aiError: null,
       }),
     ).toBe(MEMVO_ANALYSING_LABEL);
+    expect(MEMVO_PREVIEW_DEFERRED_MESSAGE).toContain('supported runtime');
     expect(buildTranscriptionFailureMessage(new Error(MEMVO_FREE_LIMIT_MESSAGE))).toBe(MEMVO_FREE_LIMIT_MESSAGE);
     expect(buildTranscriptionFailureMessage('custom failure')).toBe('custom failure');
     expect(buildEngineSummary('whisper')).toContain('Whisper');

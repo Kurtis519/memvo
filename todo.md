@@ -69,3 +69,9 @@
 - [x] Task 7: confirm free-tier transcription minute checks include bonus minutes correctly
 - [x] Task 7: add dismissible home-feed referral banner for eligible free users
 - [x] Task 7: validate Task 7 end-to-end, including referral processing safeguards and bonus-minute accounting
+- [x] Fix expo-speech-recognition preview crash by adding graceful fallback behavior for Expo Go and non-native-preview environments
+- [x] Configure Memvo for Expo development builds with expo-speech-recognition plugin support and EAS build settings
+- [x] Validate preview-mode behavior, confirm recording-screen messaging, and prepare development-build run instructions
+- [x] Make Memvo fully usable in Expo Go by removing the unsupported speech-recognition dependency from the Expo Go runtime path
+- [x] Keep recording available in Expo Go with a compatible transcription or deferred-processing path
+- [x] Validate that Expo Go no longer crashes and that non-recording screens remain fully usable

@@ -1,7 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Network from 'expo-network';
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import {
   createContext,
@@ -21,7 +20,11 @@ import type {
   MemvoSyncQueueItem,
   MemvoUserProfile,
 } from '@/lib/memvo-domain';
-import { resolveSpeechRecognitionApi, type SpeechRecognitionApi } from '@/lib/memvo-speech';
+import {
+  MEMVO_PREVIEW_SPEECH_MESSAGE,
+  resolveSpeechRecognitionApi,
+  type SpeechRecognitionApi,
+} from '@/lib/memvo-speech';
 import {
   MEMVO_NOTES_STORAGE_KEY,
   MEMVO_QUEUE_STORAGE_KEY,
@@ -44,6 +47,7 @@ import {
   MEMVO_FREE_LIMIT_MESSAGE,
   MEMVO_MAX_TRANSCRIPTION_RETRIES,
   MEMVO_ON_DEVICE_WAITING_LABEL,
+  MEMVO_PREVIEW_DEFERRED_MESSAGE,
   MEMVO_RETRY_NOTIFICATION_MESSAGE,
   MEMVO_UNSUPPORTED_DEVICE_MESSAGE,
   MEMVO_WHISPER_WAITING_LABEL,
@@ -54,6 +58,7 @@ import {
   getMinutesConsumed,
   hasRemainingFreeMinutes,
   normalizePlan,
+  resolveTranscriptionMode,
   shouldRetry,
   shouldShowRetryNotification,
 } from '@/lib/memvo-transcription';
@@ -99,6 +104,10 @@ type WhisperFunctionResult = {
 const MemvoContext = createContext<MemvoContextValue | null>(null);
 
 let cachedSpeechRecognitionApi: SpeechRecognitionApi | null | undefined;
+let cachedNotificationsApi:
+  | { scheduleNotificationAsync: (request: { content: { title: string; body: string }; trigger: null }) => Promise<string> }
+  | null
+  | undefined;
 
 function getSpeechRecognitionApi(): SpeechRecognitionApi | null {
   if (cachedSpeechRecognitionApi !== undefined) {
@@ -107,10 +116,38 @@ function getSpeechRecognitionApi(): SpeechRecognitionApi | null {
 
   cachedSpeechRecognitionApi = resolveSpeechRecognitionApi(
     Platform.OS,
-    () => require('@jamsch/expo-speech-recognition') as SpeechRecognitionApi,
+    () => require('expo-speech-recognition') as SpeechRecognitionApi,
   );
 
   return cachedSpeechRecognitionApi;
+}
+
+function getNotificationsApi():
+  | { scheduleNotificationAsync: (request: { content: { title: string; body: string }; trigger: null }) => Promise<string> }
+  | null {
+  if (cachedNotificationsApi !== undefined) {
+    return cachedNotificationsApi;
+  }
+
+  if (Platform.OS === 'web') {
+    cachedNotificationsApi = null;
+    return cachedNotificationsApi;
+  }
+
+  try {
+    const candidate = require('expo-notifications') as {
+      scheduleNotificationAsync?: (request: { content: { title: string; body: string }; trigger: null }) => Promise<string>;
+    };
+
+    cachedNotificationsApi = typeof candidate.scheduleNotificationAsync === 'function'
+      ? { scheduleNotificationAsync: candidate.scheduleNotificationAsync.bind(candidate) }
+      : null;
+  } catch (error) {
+    console.warn('Notifications module is not available in this runtime.', error);
+    cachedNotificationsApi = null;
+  }
+
+  return cachedNotificationsApi;
 }
 
 function sortNotes(notes: MemvoNote[]) {
@@ -564,7 +601,11 @@ export function MemvoProvider({ children }: PropsWithChildren) {
   const transcribeOnDevice = useCallback(async (note: MemvoNote) => {
     const speechRecognitionApi = getSpeechRecognitionApi();
 
-    if (!speechRecognitionApi?.supportsOnDeviceRecognition?.()) {
+    if (!speechRecognitionApi) {
+      throw new Error(MEMVO_PREVIEW_SPEECH_MESSAGE);
+    }
+
+    if (!speechRecognitionApi.supportsOnDeviceRecognition()) {
       throw new Error(MEMVO_UNSUPPORTED_DEVICE_MESSAGE);
     }
 
@@ -692,17 +733,20 @@ export function MemvoProvider({ children }: PropsWithChildren) {
     });
 
     if (finalFailure && shouldShowRetryNotification({ status: 'failed', retryCount: nextRetryCount, notificationShown: false })) {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: 'Memvo',
-          body: MEMVO_RETRY_NOTIFICATION_MESSAGE,
-        },
-        trigger: null,
-      });
-      updateQueueItem(item.id, (current) => ({
-        ...current,
-        notificationShown: true,
-      }));
+      const notificationsApi = getNotificationsApi();
+      if (notificationsApi) {
+        await notificationsApi.scheduleNotificationAsync({
+          content: {
+            title: 'Memvo',
+            body: MEMVO_RETRY_NOTIFICATION_MESSAGE,
+          },
+          trigger: null,
+        });
+        updateQueueItem(item.id, (current) => ({
+          ...current,
+          notificationShown: true,
+        }));
+      }
     }
   }, [syncNoteToSupabase, syncQueueToSupabase, updateNote, updateQueueItem]);
 
@@ -758,11 +802,45 @@ export function MemvoProvider({ children }: PropsWithChildren) {
     const planResult = await resolvePlanCheck();
     const effectivePlan = item.plan ?? planResult.plan;
     const nowIso = new Date().toISOString();
+    const transcriptionMode = resolveTranscriptionMode(effectivePlan, Boolean(getSpeechRecognitionApi()));
+
+    if (transcriptionMode === 'deferred') {
+      updateQueueItem(item.id, (current) => ({
+        ...current,
+        plan: effectivePlan,
+        status: 'pending',
+        lastAttemptAt: nowIso,
+        updatedAt: nowIso,
+        errorMessage: null,
+      }));
+
+      const deferredNote = {
+        ...note,
+        syncStatus: 'pending' as const,
+        transcriptionEngine: null,
+        summary: MEMVO_PREVIEW_DEFERRED_MESSAGE,
+        lastError: null,
+        isTranscribingLive: false,
+        updatedAt: nowIso,
+      };
+
+      updateNote(note.id, () => deferredNote);
+      await syncNoteToSupabase(deferredNote);
+      await syncQueueToSupabase({
+        ...item,
+        plan: effectivePlan,
+        status: 'pending',
+        lastAttemptAt: nowIso,
+        updatedAt: nowIso,
+        errorMessage: null,
+      });
+      return;
+    }
 
     updateQueueItem(item.id, (current) => ({
       ...current,
       plan: effectivePlan,
-      status: effectivePlan === 'pro' ? 'uploading' : 'transcribing',
+      status: transcriptionMode === 'whisper' ? 'uploading' : 'transcribing',
       lastAttemptAt: nowIso,
       updatedAt: nowIso,
       errorMessage: null,
@@ -770,11 +848,11 @@ export function MemvoProvider({ children }: PropsWithChildren) {
 
     updateNote(note.id, (current) => ({
       ...current,
-      syncStatus: effectivePlan === 'pro' ? 'uploading' : 'transcribing',
-      transcriptionEngine: effectivePlan === 'pro' ? 'whisper' : 'on-device',
-      summary: effectivePlan === 'pro' ? MEMVO_WHISPER_WAITING_LABEL : MEMVO_ON_DEVICE_WAITING_LABEL,
+      syncStatus: transcriptionMode === 'whisper' ? 'uploading' : 'transcribing',
+      transcriptionEngine: transcriptionMode === 'whisper' ? 'whisper' : 'on-device',
+      summary: transcriptionMode === 'whisper' ? MEMVO_WHISPER_WAITING_LABEL : MEMVO_ON_DEVICE_WAITING_LABEL,
       lastError: null,
-      isTranscribingLive: effectivePlan !== 'pro',
+      isTranscribingLive: transcriptionMode === 'on-device',
       updatedAt: nowIso,
     }));
 
@@ -783,7 +861,7 @@ export function MemvoProvider({ children }: PropsWithChildren) {
         throw new Error(MEMVO_FREE_LIMIT_MESSAGE);
       }
 
-      if (effectivePlan === 'pro') {
+      if (transcriptionMode === 'whisper') {
         const whisperResult = await transcribeWithWhisper(
           { ...note, transcriptionEngine: 'whisper', syncStatus: 'transcribing', updatedAt: nowIso },
           { ...item, status: 'uploading', plan: 'pro', updatedAt: nowIso },

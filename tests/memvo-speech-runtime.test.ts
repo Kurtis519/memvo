@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { resolveSpeechRecognitionApi } from '../lib/memvo-speech';
+import { MEMVO_PREVIEW_SPEECH_MESSAGE, resolveSpeechRecognitionApi } from '../lib/memvo-speech';
 
 describe('resolveSpeechRecognitionApi', () => {
   it('returns null on web without calling the native loader', () => {
@@ -24,6 +24,44 @@ describe('resolveSpeechRecognitionApi', () => {
 
     expect(result).toBeNull();
     expect(loader).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns null when the runtime returns an incomplete module shape', () => {
+    const warn = vi.fn();
+
+    const result = resolveSpeechRecognitionApi(
+      'ios',
+      () =>
+        ({
+          ExpoSpeechRecognitionModule: {},
+        }) as never,
+      warn,
+    );
+
+    expect(result).toBeNull();
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns null when the native availability check itself throws in preview mode', () => {
+    const warn = vi.fn();
+
+    const result = resolveSpeechRecognitionApi(
+      'ios',
+      () =>
+        ({
+          ExpoSpeechRecognitionModule: {
+            start: vi.fn(),
+          },
+          addSpeechRecognitionListener: vi.fn(() => ({ remove: vi.fn() })),
+          supportsOnDeviceRecognition: vi.fn(() => {
+            throw new Error(MEMVO_PREVIEW_SPEECH_MESSAGE);
+          }),
+        }) as never,
+      warn,
+    );
+
+    expect(result).toBeNull();
     expect(warn).toHaveBeenCalledTimes(1);
   });
 

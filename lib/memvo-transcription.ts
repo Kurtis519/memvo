@@ -20,6 +20,9 @@ export const MEMVO_FREE_LIMIT_MESSAGE = "You've used all your free minutes this 
 export const MEMVO_UNSUPPORTED_DEVICE_MESSAGE =
   'Your device does not support on-device transcription. Upgrade to Pro for Whisper-powered transcription in 99+ languages.';
 export const MEMVO_RETRY_NOTIFICATION_MESSAGE = 'Transcription failed — tap to retry';
+export const MEMVO_PREVIEW_DEFERRED_MESSAGE = 'Recording saved. Transcription will continue when Memvo is opened in a supported runtime.';
+
+export type MemvoTranscriptionMode = 'on-device' | 'whisper' | 'deferred';
 
 export type MemvoUserAllowance = {
   plan: MemvoPlan;
@@ -146,6 +149,14 @@ export function normalizePlan(rawPlan: string | null | undefined, isAdmin = fals
   }
 
   return rawPlan === 'pro' ? 'pro' : 'free';
+}
+
+export function resolveTranscriptionMode(plan: MemvoPlan, canUseOnDeviceRecognition: boolean): MemvoTranscriptionMode {
+  if (plan === 'pro' || plan === 'admin') {
+    return 'whisper';
+  }
+
+  return canUseOnDeviceRecognition ? 'on-device' : 'deferred';
 }
 
 export function buildTranscriptionFailureMessage(error: unknown) {

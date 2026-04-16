@@ -4,7 +4,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Audio } from 'expo-av';
 import { useKeepAwake } from 'expo-keep-awake';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Platform, Text, TouchableOpacity, View } from 'react-native';
 
 import { ScreenContainer } from '@/components/screen-container';
 import { useMemvo } from '@/lib/memvo-store';
@@ -20,6 +20,7 @@ import {
   formatDuration,
   normalizeMeteringToBarHeight,
 } from '@/lib/memvo-recording-utils';
+import { MEMVO_PREVIEW_SPEECH_MESSAGE, resolveSpeechRecognitionApi } from '@/lib/memvo-speech';
 
 const TEAL = '#0F6E56';
 const BAR_COUNT = 28;
@@ -146,6 +147,13 @@ export default function RecordScreen() {
   }, []);
 
   const timerLabel = useMemo(() => formatDuration(durationMillis), [durationMillis]);
+  const isPreviewSpeechUnavailable = useMemo(() => {
+    if (Platform.OS === 'web') {
+      return false;
+    }
+
+    return !resolveSpeechRecognitionApi(Platform.OS, () => require('expo-speech-recognition'));
+  }, []);
 
   const startRecording = useCallback(async () => {
     if (isSaving || isTransitioning || isRecording) {
@@ -247,6 +255,12 @@ export default function RecordScreen() {
               <Text className="text-sm font-medium text-[#0F6E56]">
                 Recording offline — will sync and transcribe when connected
               </Text>
+            </View>
+          ) : null}
+
+          {isPreviewSpeechUnavailable ? (
+            <View className="rounded-2xl border border-[#F0D9AE] bg-[#FFF7E7] px-4 py-3">
+              <Text className="text-sm font-medium text-[#8A5B00]">{MEMVO_PREVIEW_SPEECH_MESSAGE}</Text>
             </View>
           ) : null}
 

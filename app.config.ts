@@ -97,6 +97,13 @@ const config: ExpoConfig = {
         },
       },
     ],
+    [
+      'expo-speech-recognition',
+      {
+        microphonePermission: 'Allow Memvo to use your microphone to transcribe voice notes.',
+        speechRecognitionPermission: 'Allow Memvo to transcribe your voice notes.',
+      },
+    ],
   ],
   experiments: {
     typedRoutes: true,
