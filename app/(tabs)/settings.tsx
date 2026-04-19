@@ -34,6 +34,15 @@ const sections = [
 export default function SettingsScreen() {
   const { userProfile } = useMemvo();
   const bonusMinutes = Math.round(userProfile?.bonusMinutes ?? 0);
+  const visibleSections = userProfile?.isAdmin
+    ? [
+        ...sections,
+        {
+          title: 'Admin',
+          rows: [{ label: 'Admin panel', helper: 'Review usage stats, referrals, and Manual Pro access' }],
+        },
+      ]
+    : sections;
 
   return (
     <ScreenContainer className="bg-background px-5 pt-3">
@@ -71,19 +80,29 @@ export default function SettingsScreen() {
             </View>
           </TouchableOpacity>
 
-          {sections.map((section) => (
+          {visibleSections.map((section) => (
             <View key={section.title} className="rounded-2xl border border-border bg-surface p-4">
               <Text className="text-base font-semibold text-foreground">{section.title}</Text>
               <View className="mt-3 gap-3">
-                {section.rows.map((row) => (
-                  <View key={row.label} className="rounded-2xl bg-background px-4 py-4">
-                    <View className="flex-row items-center justify-between gap-3">
-                      <Text className="text-sm font-medium text-foreground">{row.label}</Text>
-                      <Text className="text-base text-muted">›</Text>
-                    </View>
-                    <Text className="mt-1 text-sm leading-6 text-muted">{row.helper}</Text>
-                  </View>
-                ))}
+                {section.rows.map((row) => {
+                  const isAdminPanelRow = row.label === 'Admin panel';
+
+                  return (
+                    <TouchableOpacity
+                      key={row.label}
+                      accessibilityRole={isAdminPanelRow ? 'button' : undefined}
+                      activeOpacity={isAdminPanelRow ? 0.85 : 1}
+                      className="rounded-2xl bg-background px-4 py-4"
+                      onPress={isAdminPanelRow ? () => router.push('/admin') : undefined}
+                    >
+                      <View className="flex-row items-center justify-between gap-3">
+                        <Text className="text-sm font-medium text-foreground">{row.label}</Text>
+                        <Text className="text-base text-muted">›</Text>
+                      </View>
+                      <Text className="mt-1 text-sm leading-6 text-muted">{row.helper}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
           ))}

@@ -9,7 +9,7 @@
 - [x] Define Supabase database schema for users, notes, folders, sync_queue, and referrals
 - [x] Add row-level security SQL policies for all user-owned tables and admin-restricted fields
 - [x] Add server-side admin email handling and automatic is_admin assignment
-- [ ] Add manual Pro grant data flow and admin panel actions
+- [x] Add manual Pro grant data flow and admin panel actions
 - [x] Prepare RevenueCat-aware plan gating structure for secure transcription routing
 - [ ] Prepare transcription routing structure for on-device free tier and Whisper Pro tier
 - [ ] Prepare Claude processing structure for summaries, action items, and tags
@@ -75,3 +75,9 @@
 - [x] Make Memvo fully usable in Expo Go by removing the unsupported speech-recognition dependency from the Expo Go runtime path
 - [x] Keep recording available in Expo Go with a compatible transcription or deferred-processing path
 - [x] Validate that Expo Go no longer crashes and that non-recording screens remain fully usable
+- [x] Task 8: confirm admin columns exist, add secure server-side admin trigger, and enforce RLS for is_admin and manual_pro
+- [x] Task 8: confirm check-user-plan treats is_admin and manual_pro as Pro access
+- [x] Task 8: build set-manual-pro edge function with admin-only enforcement and admin_actions logging
+- [x] Task 8: build get-admin-stats edge function with admin-only enforcement, service-role queries, and 5-minute caching
+- [x] Task 8: add admin-only Settings entry and complete Admin panel with overview, referral stats, recent signups, and Pro management
+- [x] Task 8: validate admin-only visibility, manual Pro grant/revoke flows, admin action logging, and protected edge-function access

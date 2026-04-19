@@ -8,13 +8,16 @@ describe('configured secrets', () => {
     const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
     const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const adminEmail = process.env.MEMVO_ADMIN_EMAIL;
+    const adminEmailPrimary = process.env.ADMIN_EMAIL;
 
     expect(openAiKey).toBeTruthy();
     expect(anthropicKey).toBeTruthy();
     expect(supabaseUrl).toBeTruthy();
     expect(supabaseAnonKey).toBeTruthy();
     expect(supabaseServiceRoleKey).toBeTruthy();
-    expect(adminEmail).toBe('info@camconstructionandmore.com');
+    expect(adminEmail).toBeTruthy();
+    expect(adminEmailPrimary).toBeTruthy();
+    expect(adminEmail?.trim().toLowerCase()).toBe(adminEmailPrimary?.trim().toLowerCase());
 
     const openAiResponse = await fetch('https://api.openai.com/v1/models', {
       headers: {

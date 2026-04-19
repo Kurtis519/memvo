@@ -74,6 +74,14 @@ create table if not exists public.referrals (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+create table if not exists public.admin_actions (
+  id uuid primary key default gen_random_uuid(),
+  admin_user_id uuid not null references public.user_profiles(id) on delete restrict,
+  action_type text not null check (action_type in ('grant_pro', 'revoke_pro')),
+  target_user_id uuid not null references public.user_profiles(id) on delete restrict,
+  created_at timestamptz not null default timezone('utc', now())
+);
+
 alter table public.referrals
   add column if not exists bonus_minutes_awarded integer not null default 30;
 
@@ -127,7 +135,7 @@ security definer
 set search_path = public
 as $$
 declare
-  configured_admin_email text := lower(coalesce(current_setting('app.settings.memvo_admin_email', true), ''));
+  configured_admin_email text := lower(coalesce(current_setting('app.settings.admin_email', true), current_setting('app.settings.memvo_admin_email', true), ''));
 begin
   insert into public.user_profiles (
     id,
@@ -204,6 +212,7 @@ alter table public.folders enable row level security;
 alter table public.notes enable row level security;
 alter table public.sync_queue enable row level security;
 alter table public.referrals enable row level security;
+alter table public.admin_actions enable row level security;
 
 create policy "profiles_select_own" on public.user_profiles
 for select using (auth.uid() = id or exists (
@@ -213,7 +222,11 @@ for select using (auth.uid() = id or exists (
 
 create policy "profiles_update_own" on public.user_profiles
 for update using (auth.uid() = id)
-with check (auth.uid() = id);
+with check (
+  auth.uid() = id
+  and is_admin = coalesce((select existing_profile.is_admin from public.user_profiles existing_profile where existing_profile.id = auth.uid()), false)
+  and manual_pro = coalesce((select existing_profile.manual_pro from public.user_profiles existing_profile where existing_profile.id = auth.uid()), false)
+);
 
 create policy "folders_manage_own" on public.folders
 for all using (auth.uid() = user_id)
@@ -247,6 +260,14 @@ for update using (
   )
 )
 with check (
+  exists (
+    select 1 from public.user_profiles admin_profile
+    where admin_profile.id = auth.uid() and admin_profile.is_admin = true
+  )
+);
+
+create policy "admin_actions_select_admin" on public.admin_actions
+for select using (
   exists (
     select 1 from public.user_profiles admin_profile
     where admin_profile.id = auth.uid() and admin_profile.is_admin = true
@@ -347,7 +368,7 @@ begin
 end;
 $$;
 
-comment on function public.handle_new_user_profile is 'Reads app.settings.memvo_admin_email to auto-assign the Memvo owner account admin access.';
+comment on function public.handle_new_user_profile is 'Reads the Supabase ADMIN_EMAIL secret through app.settings.admin_email to auto-assign the Memvo owner account admin access.';
 comment on function public.award_referral_bonus is 'Awards Memvo referral bonus minutes exactly once for an eligible new user.';
 comment on table public.sync_queue is 'Tracks offline recordings that still need upload, transcription, or retry handling.';
 

@@ -19,7 +19,7 @@ async function readSupabaseProfilePlan(email?: string | null) {
   }
 
   const url = new URL(`${baseUrl.replace(/\/$/, "")}/rest/v1/user_profiles`);
-  url.searchParams.set("select", "plan,is_admin,email");
+  url.searchParams.set("select", "plan,is_admin,manual_pro,email");
   url.searchParams.set("email", `eq.${normalizedEmail}`);
   url.searchParams.set("limit", "1");
 
@@ -38,6 +38,7 @@ async function readSupabaseProfilePlan(email?: string | null) {
   const payload = (await response.json()) as Array<{
     plan?: "free" | "pro" | "admin" | null;
     is_admin?: boolean | null;
+    manual_pro?: boolean | null;
     email?: string | null;
   }>;
 
@@ -63,10 +64,10 @@ async function resolveVerifiedPlan(params: { role?: string | null; email?: strin
     };
   }
 
-  if (profile?.plan === "pro" || profile?.plan === "admin") {
+  if (profile?.manual_pro || profile?.plan === "pro" || profile?.plan === "admin") {
     return {
       plan: "pro",
-      source: "manual-pro",
+      source: profile?.manual_pro ? "manual-pro" : "edge-function",
     };
   }
 
