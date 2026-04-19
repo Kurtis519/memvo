@@ -321,6 +321,8 @@ export function MemvoProvider({ children }: PropsWithChildren) {
       setUserProfile((current) => current ?? {
         id: 'local-user',
         email: null,
+        fullName: null,
+        avatarUrl: null,
         plan: 'free',
         isAdmin: false,
         manualPro: false,
@@ -343,7 +345,7 @@ export function MemvoProvider({ children }: PropsWithChildren) {
 
     const { data } = await supabase
       .from('user_profiles')
-      .select('id,email,plan,is_admin,manual_pro,referral_code,referred_by_code,bonus_minutes,minutes_used_this_month,created_at,updated_at')
+      .select('id,email,full_name,avatar_url,plan,is_admin,manual_pro,referral_code,referred_by_code,bonus_minutes,minutes_used_this_month,created_at,updated_at')
       .eq('id', authUser.id)
       .single();
 
@@ -351,6 +353,8 @@ export function MemvoProvider({ children }: PropsWithChildren) {
       setUserProfile({
         id: authUser.id,
         email: authUser.email ?? null,
+        fullName: (authUser.user_metadata?.full_name as string | undefined) ?? (authUser.user_metadata?.name as string | undefined) ?? null,
+        avatarUrl: (authUser.user_metadata?.avatar_url as string | undefined) ?? null,
         plan: 'free',
         isAdmin: false,
         manualPro: false,
@@ -367,6 +371,8 @@ export function MemvoProvider({ children }: PropsWithChildren) {
     setUserProfile({
       id: data.id,
       email: data.email ?? authUser.email ?? null,
+      fullName: data.full_name ?? authUser.user_metadata?.full_name ?? authUser.user_metadata?.name ?? null,
+      avatarUrl: data.avatar_url ?? authUser.user_metadata?.avatar_url ?? null,
       plan: normalizePlan(data.plan, Boolean(data.is_admin)),
       isAdmin: Boolean(data.is_admin),
       manualPro: Boolean(data.manual_pro),

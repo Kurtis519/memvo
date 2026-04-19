@@ -20,6 +20,8 @@ export type MemvoFeature =
 export interface MemvoUserProfile {
   id: string;
   email: string | null;
+  fullName: string | null;
+  avatarUrl: string | null;
   plan: MemvoPlan;
   isAdmin: boolean;
   manualPro: boolean;

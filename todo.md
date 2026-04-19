@@ -81,3 +81,10 @@
 - [x] Task 8: build get-admin-stats edge function with admin-only enforcement, service-role queries, and 5-minute caching
 - [x] Task 8: add admin-only Settings entry and complete Admin panel with overview, referral stats, recent signups, and Pro management
 - [x] Task 8: validate admin-only visibility, manual Pro grant/revoke flows, admin action logging, and protected edge-function access
+- [x] Task 9: build the full Settings screen with all 8 sections, grouped rows, admin-only visibility, and sign-out confirmation
+- [x] Task 9: add editable account profile details, password reset flow, and Google sign-in row visibility rules
+- [x] Task 9: implement subscription states for free, Pro, and admin users including progress, billing, and management actions
+- [x] Task 9: build privacy actions including locked audio-deletion explanation, privacy policy link, export-user-data, and delete-user-account flows
+- [x] Task 9: add app preferences, support tools, FAQ screen, version display, and offline/manual sync details
+- [x] Task 9: create secure export-user-data and delete-user-account edge functions plus any required deletion logging support
+- [x] Task 9: validate settings behavior, admin visibility, export/delete safeguards, and session clearing before delivery

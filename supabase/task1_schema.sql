@@ -82,6 +82,14 @@ create table if not exists public.admin_actions (
   created_at timestamptz not null default timezone('utc', now())
 );
 
+create table if not exists public.deletions_log (
+  id uuid primary key default gen_random_uuid(),
+  user_id_hash text not null,
+  deleted_at timestamptz not null default timezone('utc', now())
+);
+
+create index if not exists deletions_log_deleted_at_idx on public.deletions_log (deleted_at desc);
+
 alter table public.referrals
   add column if not exists bonus_minutes_awarded integer not null default 30;
 
@@ -213,6 +221,7 @@ alter table public.notes enable row level security;
 alter table public.sync_queue enable row level security;
 alter table public.referrals enable row level security;
 alter table public.admin_actions enable row level security;
+alter table public.deletions_log enable row level security;
 
 create policy "profiles_select_own" on public.user_profiles
 for select using (auth.uid() = id or exists (
@@ -371,6 +380,7 @@ $$;
 comment on function public.handle_new_user_profile is 'Reads the Supabase ADMIN_EMAIL secret through app.settings.admin_email to auto-assign the Memvo owner account admin access.';
 comment on function public.award_referral_bonus is 'Awards Memvo referral bonus minutes exactly once for an eligible new user.';
 comment on table public.sync_queue is 'Tracks offline recordings that still need upload, transcription, or retry handling.';
+comment on table public.deletions_log is 'Stores hashed-only audit records for deleted Memvo accounts without retaining raw user identifiers.';
 
 -- Task 4: Claude post-transcription note processing
 create extension if not exists pg_net with schema extensions;
