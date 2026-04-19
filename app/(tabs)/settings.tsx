@@ -415,16 +415,27 @@ export default function SettingsScreen() {
   };
 
   const handleSignOut = () => {
-    Alert.alert('Sign out?', 'This will clear local Memvo data from this device and return you to onboarding.', [
+    const confirmMessage = 'This will clear local Memvo data from this device and return you to onboarding.';
+
+    const runSignOut = () => {
+      void executeSignOut().catch((error) => {
+        Alert.alert('Unable to sign out', error instanceof Error ? error.message : 'Please try again.');
+      });
+    };
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      if (window.confirm(`Sign out?\n\n${confirmMessage}`)) {
+        runSignOut();
+      }
+      return;
+    }
+
+    Alert.alert('Sign out?', confirmMessage, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Sign out',
         style: 'destructive',
-        onPress: () => {
-          void executeSignOut().catch((error) => {
-            Alert.alert('Unable to sign out', error instanceof Error ? error.message : 'Please try again.');
-          });
-        },
+        onPress: runSignOut,
       },
     ]);
   };

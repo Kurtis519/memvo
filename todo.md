@@ -88,3 +88,14 @@
 - [x] Task 9: add app preferences, support tools, FAQ screen, version display, and offline/manual sync details
 - [x] Task 9: create secure export-user-data and delete-user-account edge functions plus any required deletion logging support
 - [x] Task 9: validate settings behavior, admin visibility, export/delete safeguards, and session clearing before delivery
+- [ ] Run the pending Supabase migration so Memvo creates all required tables, columns, and row-level security policies
+- [ ] Verify the required tables appear after migration and provide the executed SQL back to the user
+- [x] Fix signup so Supabase email/password auth works end to end from the Memvo app
+- [x] Verify Supabase project configuration, anon key usage, and signup response handling in the app
+- [x] Ensure signup creates the expected users row and auto-generated referral code through the database trigger
+- [x] Fix Settings tab navigation and Settings screen rendering so it opens without crashing
+- [x] Confirm Settings shows account email, free-plan usage, working sign out, and admin-only admin panel visibility
+- [x] Validate signup, users-table row creation, Settings access, and sign-out behavior end to end
+- [x] Fix the runtime Supabase configuration resolution so onboarding no longer reports that Supabase is not configured in the current build
+- [x] Re-verify fresh email-password signup after the runtime Supabase configuration fix
+- [x] Fix the Settings sign-out action on web so it completes without relying on an inaccessible confirmation dialog in the live preview

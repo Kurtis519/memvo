@@ -439,6 +439,20 @@ export function MemvoProvider({ children }: PropsWithChildren) {
       return;
     }
 
+    const { data: subscription } = supabase.auth.onAuthStateChange(() => {
+      void refreshUserProfile();
+    });
+
+    return () => {
+      subscription.subscription.unsubscribe();
+    };
+  }, [isHydrated, refreshUserProfile]);
+
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
     setFolders((current) => ensureDefaultFolders(current, activeUserId));
   }, [activeUserId, isHydrated]);
 

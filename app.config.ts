@@ -13,6 +13,8 @@ const env = {
   scheme: schemeFromBundleId,
   iosBundleId: bundleId,
   androidPackage: bundleId,
+  supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? '',
+  supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? '',
 };
 
 const config: ExpoConfig = {
@@ -112,6 +114,8 @@ const config: ExpoConfig = {
   extra: {
     appName: env.appName,
     logoUrl: env.logoUrl,
+    supabaseUrl: env.supabaseUrl,
+    supabaseAnonKey: env.supabaseAnonKey,
   },
 };
 

@@ -5,7 +5,7 @@ describe('configured secrets', () => {
     const openAiKey = process.env.OPENAI_API_KEY;
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
     const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+    const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY;
     const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const adminEmail = process.env.MEMVO_ADMIN_EMAIL;
     const adminEmailPrimary = process.env.ADMIN_EMAIL;
@@ -13,6 +13,7 @@ describe('configured secrets', () => {
     expect(openAiKey).toBeTruthy();
     expect(anthropicKey).toBeTruthy();
     expect(supabaseUrl).toBeTruthy();
+    expect(process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY).toBeTruthy();
     expect(supabaseAnonKey).toBeTruthy();
     expect(supabaseServiceRoleKey).toBeTruthy();
     expect(adminEmail).toBeTruthy();
