@@ -112,21 +112,21 @@ export default function OnboardingScreen() {
 
   const renderSlide = ({ item }: ListRenderItemInfo<OnboardingSlide>) => (
     <View style={{ width: slideWidth }} className="flex-1 pr-4">
-      <View className="flex-1 rounded-[32px] border border-border bg-surface px-6 py-7">
+      <View className="flex-1 rounded-[32px] border border-[#E6E6E6] bg-[#FFFFFF] px-6 py-7">
         {item.id === 'welcome' ? (
           <View className="flex-1 justify-between">
             <View className="items-center pt-4">
               <View className="h-24 w-24 items-center justify-center rounded-[28px] bg-primary">
                 <Text className="text-5xl font-bold text-white">M</Text>
               </View>
-              <Text className="mt-8 text-4xl font-bold text-foreground">{item.headline}</Text>
-              <Text className="mt-5 text-center text-2xl font-semibold leading-9 text-primary">{item.tagline}</Text>
-              <Text className="mt-4 text-center text-base leading-7 text-muted">{item.subtext}</Text>
+              <Text className="mt-8 text-4xl font-bold text-[#1A1A1A]">{item.headline}</Text>
+              <Text className="mt-5 text-center text-2xl font-semibold leading-9 text-[#1A1A1A]">{item.tagline}</Text>
+              <Text className="mt-4 text-center text-base leading-7 text-[#555555]">{item.subtext}</Text>
             </View>
 
-            <View className="rounded-[28px] border border-primary/10 bg-background px-5 py-5">
-              <Text className="text-sm font-semibold uppercase tracking-[1.2px] text-primary">Built for calm capture</Text>
-              <Text className="mt-3 text-base leading-7 text-foreground">
+            <View className="rounded-[28px] border border-[#D9D9D9] bg-[#FFFFFF] px-5 py-5">
+              <Text className="text-sm font-semibold uppercase tracking-[1.2px] text-[#888888]">Built for calm capture</Text>
+              <Text className="mt-3 text-base leading-7 text-[#555555]">
                 Keep thoughts moving with one-handed recording, fast summaries, and privacy settings that stay visible.
               </Text>
             </View>
@@ -136,20 +136,20 @@ export default function OnboardingScreen() {
         {item.id === 'features' ? (
           <View className="flex-1 justify-between">
             <View>
-              <Text className="text-3xl font-bold leading-10 text-foreground">{item.headline}</Text>
-              <Text className="mt-3 text-base leading-7 text-muted">
+              <Text className="text-3xl font-bold leading-10 text-[#1A1A1A]">{item.headline}</Text>
+              <Text className="mt-3 text-base leading-7 text-[#555555]">
                 Memvo focuses on the essentials so every recording feels private, clear, and easy to revisit later.
               </Text>
             </View>
 
             <View className="mt-8 gap-4">
               {item.features?.map((feature) => (
-                <View key={feature.title} className="rounded-[24px] border border-border bg-background px-5 py-5">
+                <View key={feature.title} className="rounded-[24px] border border-[#E6E6E6] bg-[#FFFFFF] px-5 py-5">
                   <View className="flex-row items-start gap-4">
                     <Text className="text-2xl">{feature.emoji}</Text>
                     <View className="flex-1 gap-1">
-                      <Text className="text-base font-semibold text-foreground">{feature.title}</Text>
-                      <Text className="text-sm leading-6 text-muted">{feature.description}</Text>
+                      <Text className="text-base font-semibold text-[#1A1A1A]">{feature.title}</Text>
+                      <Text className="text-sm leading-6 text-[#555555]">{feature.description}</Text>
                     </View>
                   </View>
                 </View>
@@ -161,28 +161,28 @@ export default function OnboardingScreen() {
         {item.id === 'pricing' ? (
           <View className="flex-1 justify-between">
             <View>
-              <Text className="text-3xl font-bold leading-10 text-foreground">{item.headline}</Text>
-              <Text className="mt-3 text-base leading-7 text-muted">{item.subtext}</Text>
+              <Text className="text-3xl font-bold leading-10 text-[#1A1A1A]">{item.headline}</Text>
+              <Text className="mt-3 text-base leading-7 text-[#555555]">{item.subtext}</Text>
             </View>
 
             <View className="mt-8 flex-row gap-4">
               {item.pricing?.map((plan) => (
-                <View key={plan.name} className={`flex-1 rounded-[28px] border px-4 py-5 ${plan.name === 'Pro' ? 'border-primary bg-primary' : 'border-border bg-background'}`}>
-                  <Text className={`text-sm font-semibold uppercase tracking-[1.1px] ${plan.name === 'Pro' ? 'text-white/80' : 'text-primary'}`}>
+                <View key={plan.name} className={`flex-1 rounded-[28px] border px-4 py-5 ${plan.name === 'Pro' ? 'border-[#0F6E56] bg-[#FFFFFF]' : 'border-[#E6E6E6] bg-[#FFFFFF]'}`}>
+                  <Text className={`text-sm font-semibold uppercase tracking-[1.1px] ${plan.name === 'Pro' ? 'text-[#0F6E56]' : 'text-[#888888]'}`}>
                     {plan.name}
                   </Text>
-                  <Text className={`mt-4 text-2xl font-bold leading-8 ${plan.name === 'Pro' ? 'text-white' : 'text-foreground'}`}>
+                  <Text className={`mt-4 text-2xl font-bold leading-8 ${plan.name === 'Pro' ? 'text-[#1A1A1A]' : 'text-[#1A1A1A]'}`}>
                     {plan.detail}
                   </Text>
-                  <Text className={`mt-3 text-sm leading-6 ${plan.name === 'Pro' ? 'text-white/90' : 'text-muted'}`}>
+                  <Text className={`mt-3 text-sm leading-6 ${plan.name === 'Pro' ? 'text-[#555555]' : 'text-[#555555]'}`}>
                     {plan.helper}
                   </Text>
                 </View>
               ))}
             </View>
 
-            <View className="rounded-[28px] border border-border bg-background px-5 py-5">
-              <Text className="text-sm leading-6 text-muted">
+            <View className="rounded-[28px] border border-[#E6E6E6] bg-[#FFFFFF] px-5 py-5">
+              <Text className="text-sm leading-6 text-[#888888]">
                 No ads — ever. Your plan changes stay visible inside Settings, and you can upgrade only when Memvo is actually helping.
               </Text>
             </View>
@@ -193,10 +193,10 @@ export default function OnboardingScreen() {
   );
 
   return (
-    <ScreenContainer edges={['top', 'bottom', 'left', 'right']} className="bg-background px-5 pt-4 pb-6">
+    <ScreenContainer edges={['top', 'bottom', 'left', 'right']} className="bg-[#FFFFFF] px-5 pt-4 pb-6">
       <View className="flex-1 justify-between">
         <View className="gap-5">
-          <Text className="text-sm font-semibold uppercase tracking-[1.6px] text-primary">First-time setup</Text>
+          <Text className="text-sm font-semibold uppercase tracking-[1.6px] text-[#0F6E56]">First-time setup</Text>
           <FlatList
             ref={listRef}
             data={SLIDES}
@@ -218,7 +218,7 @@ export default function OnboardingScreen() {
         <View className="gap-4 pt-5">
           <View className="flex-row items-center justify-between">
             <ProgressDots currentIndex={currentIndex} />
-            <Text className="text-sm font-medium text-muted">{currentIndex + 1} / {SLIDES.length}</Text>
+            <Text className="text-sm font-medium text-[#888888]">{currentIndex + 1} / {SLIDES.length}</Text>
           </View>
 
           <View className="flex-row items-center justify-between gap-3">
@@ -226,9 +226,9 @@ export default function OnboardingScreen() {
               accessibilityRole="button"
               disabled={currentIndex === 0}
               onPress={() => goToIndex(currentIndex - 1)}
-              className={`rounded-full px-5 py-4 ${currentIndex === 0 ? 'bg-surface' : 'bg-surface border border-border'}`}
+              className={`rounded-full px-5 py-4 ${currentIndex === 0 ? 'bg-[#F0F0F0]' : 'bg-[#F0F0F0] border border-[#D9D9D9]'}`}
             >
-              <Text className={`text-sm font-semibold ${currentIndex === 0 ? 'text-muted/60' : 'text-foreground'}`}>Back</Text>
+              <Text className={`text-sm font-semibold ${currentIndex === 0 ? 'text-[#888888]' : 'text-[#333333]'}`}>Back</Text>
             </Pressable>
 
             {currentIndex === lastIndex ? (
@@ -238,7 +238,7 @@ export default function OnboardingScreen() {
                 onPress={() => {
                   void handleGetStarted();
                 }}
-                className="rounded-full bg-primary px-6 py-4"
+                className="rounded-full bg-[#0F6E56] px-6 py-4"
               >
                 <Text className="text-sm font-semibold text-white">Get started</Text>
               </TouchableOpacity>
@@ -247,7 +247,7 @@ export default function OnboardingScreen() {
                 accessibilityRole="button"
                 activeOpacity={0.85}
                 onPress={() => goToIndex(currentIndex + 1)}
-                className="rounded-full bg-primary px-6 py-4"
+                className="rounded-full bg-[#0F6E56] px-6 py-4"
               >
                 <Text className="text-sm font-semibold text-white">Next</Text>
               </TouchableOpacity>
