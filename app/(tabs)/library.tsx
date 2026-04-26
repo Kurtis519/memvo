@@ -1,14 +1,6 @@
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
-import {
-  Alert,
-  FlatList,
-  SectionList,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { Alert, FlatList, Pressable, ScrollView, SectionList, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 import { ScreenContainer } from '@/components/screen-container';
 import {
@@ -100,7 +92,18 @@ export default function LibraryScreen() {
     }
 
     if (!canCreateUnlimitedFolders && folderLimitReached && !editingFolderId) {
-      Alert.alert('Folder limit reached', 'Free plans can keep up to three custom folders. Upgrade to Pro to add more folders.');
+      Alert.alert('Folder limit reached', 'Free plans can keep up to three custom folders. Upgrade to Pro to add more folders.', [
+        {
+          text: 'Maybe later',
+          style: 'cancel',
+        },
+        {
+          text: 'Upgrade to Pro',
+          onPress: () => {
+            router.push('/paywall?trigger=folders');
+          },
+        },
+      ]);
       return;
     }
 
@@ -166,7 +169,18 @@ export default function LibraryScreen() {
               activeOpacity={0.82}
               onPress={() => {
                 if (folderLimitReached && !editingFolderId) {
-                  Alert.alert('Folder limit reached', 'Free plans can keep up to three custom folders. Upgrade to Pro to add more folders.');
+                  Alert.alert('Folder limit reached', 'Free plans can keep up to three custom folders. Upgrade to Pro to add more folders.', [
+                    {
+                      text: 'Maybe later',
+                      style: 'cancel',
+                    },
+                    {
+                      text: 'Upgrade to Pro',
+                      onPress: () => {
+                        router.push('/paywall?trigger=folders');
+                      },
+                    },
+                  ]);
                   return;
                 }
                 setEditingFolderId(null);

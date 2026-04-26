@@ -62,6 +62,7 @@ import {
   shouldRetry,
   shouldShowRetryNotification,
 } from '@/lib/memvo-transcription';
+import { getRevenueCatCustomerInfo, hasRevenueCatProAccess, syncRevenueCatUser } from '@/lib/revenuecat';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 
 type RecordingSaveInput = {
@@ -78,6 +79,7 @@ type MemvoContextValue = {
   isHydrated: boolean;
   isOnline: boolean;
   userProfile: MemvoUserProfile | null;
+  refreshUserProfile: () => Promise<void>;
   addLocalRecording: (input: RecordingSaveInput) => Promise<MemvoNote>;
   processPendingQueue: () => Promise<void>;
   retryQueueItem: (queueId: string) => Promise<void>;
@@ -339,9 +341,15 @@ export function MemvoProvider({ children }: PropsWithChildren) {
     const authResult = await supabase.auth.getUser();
     const authUser = authResult.data.user;
     if (!authUser) {
+      await syncRevenueCatUser(null).catch(() => {
+        // Ignore RevenueCat logout issues during auth refresh.
+      });
       setUserProfile(null);
       return;
     }
+
+    const revenueCatCustomerInfo = await getRevenueCatCustomerInfo(authUser.id).catch(() => null);
+    const hasRevenueCatPro = hasRevenueCatProAccess(revenueCatCustomerInfo);
 
     const { data } = await supabase
       .from('user_profiles')
@@ -355,7 +363,7 @@ export function MemvoProvider({ children }: PropsWithChildren) {
         email: authUser.email ?? null,
         fullName: (authUser.user_metadata?.full_name as string | undefined) ?? (authUser.user_metadata?.name as string | undefined) ?? null,
         avatarUrl: (authUser.user_metadata?.avatar_url as string | undefined) ?? null,
-        plan: 'free',
+        plan: hasRevenueCatPro ? 'pro' : 'free',
         isAdmin: false,
         manualPro: false,
         referralCode: null,
@@ -373,7 +381,7 @@ export function MemvoProvider({ children }: PropsWithChildren) {
       email: data.email ?? authUser.email ?? null,
       fullName: data.full_name ?? authUser.user_metadata?.full_name ?? authUser.user_metadata?.name ?? null,
       avatarUrl: data.avatar_url ?? authUser.user_metadata?.avatar_url ?? null,
-      plan: normalizePlan(data.plan, Boolean(data.is_admin)),
+      plan: normalizePlan(hasRevenueCatPro ? 'pro' : data.plan, Boolean(data.is_admin)),
       isAdmin: Boolean(data.is_admin),
       manualPro: Boolean(data.manual_pro),
       referralCode: data.referral_code ?? null,
@@ -1257,6 +1265,7 @@ export function MemvoProvider({ children }: PropsWithChildren) {
       isHydrated,
       isOnline,
       userProfile,
+      refreshUserProfile,
       addLocalRecording,
       processPendingQueue,
       retryQueueItem,
@@ -1287,6 +1296,7 @@ export function MemvoProvider({ children }: PropsWithChildren) {
       notes,
       processPendingQueue,
       recentSearches,
+      refreshUserProfile,
       removeRecentSearchTerm,
       renameFolder,
       retryQueueItem,

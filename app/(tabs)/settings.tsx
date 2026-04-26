@@ -411,11 +411,11 @@ export default function SettingsScreen() {
       await supabase.auth.signOut();
     }
     await logout();
-    router.replace('/onboarding');
+    router.replace('/login');
   };
 
   const handleSignOut = () => {
-    const confirmMessage = 'This will clear local Memvo data from this device and return you to onboarding.';
+    const confirmMessage = 'This will clear local Memvo data from this device and return you to sign in.';
 
     const runSignOut = () => {
       void executeSignOut().catch((error) => {
@@ -423,10 +423,8 @@ export default function SettingsScreen() {
       });
     };
 
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      if (window.confirm(`Sign out?\n\n${confirmMessage}`)) {
-        runSignOut();
-      }
+    if (Platform.OS === 'web') {
+      runSignOut();
       return;
     }
 

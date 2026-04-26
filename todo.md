@@ -99,3 +99,11 @@
 - [x] Fix the runtime Supabase configuration resolution so onboarding no longer reports that Supabase is not configured in the current build
 - [x] Re-verify fresh email-password signup after the runtime Supabase configuration fix
 - [x] Fix the Settings sign-out action on web so it completes without relying on an inaccessible confirmation dialog in the live preview
+- [x] Task 10: build an app-wide auth gate that routes logged-in users to Home and signed-out users to onboarding or login without screen flash
+- [x] Task 10: build the three-slide first-run onboarding flow with local persistence and polished swipe navigation
+- [x] Task 10: build polished signup and login screens with Supabase email auth, Google entry points, loading, error, and password visibility states
+- [x] Task 10: handle signup success, optional email-confirmation state, referral-code processing, and returning-user login routing
+- [x] Task 10: connect sign-out to return users to Login while preserving onboarding-seen state correctly
+- [x] Task 10: implement paywall presentation, RevenueCat purchase flow wiring, and plan refresh after purchase
+- [x] Task 10: validate onboarding, auth routing, signup, login, forgot password, paywall display, admin routing, and referral deep-link behavior end to end
+- [x] Fix the Task 10 web auth-session inconsistency so logout, protected-route redirects, and the neutral root route all resolve from a single consistent session source

@@ -1,10 +1,12 @@
 import '@/global.css';
 import '@/lib/_core/nativewind-pressable';
+import { AuthGate } from '@/components/auth-gate';
 import { initManusRuntime, subscribeSafeAreaInsets } from '@/lib/_core/manus-runtime';
 import { MemvoProvider } from '@/lib/memvo-store';
 import { ThemeProvider } from '@/lib/theme-provider';
 import { trpc, createTRPCClient } from '@/lib/trpc';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import * as SplashScreen from 'expo-splash-screen';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -24,9 +26,14 @@ import {
 const DEFAULT_WEB_INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 const DEFAULT_WEB_FRAME: Rect = { x: 0, y: 0, width: 0, height: 0 };
 
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
+void SplashScreen.preventAutoHideAsync().catch(() => {
+  // Ignore repeated splash prevention in development.
+});
+
+SplashScreen.setOptions({
+  fade: true,
+  duration: 180,
+});
 
 export default function RootLayout() {
   const initialInsets = initialWindowMetrics?.insets ?? DEFAULT_WEB_INSETS;
@@ -79,15 +86,22 @@ export default function RootLayout() {
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
           <MemvoProvider>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="admin" />
-              <Stack.Screen name="faq" />
-              <Stack.Screen name="invite" />
-              <Stack.Screen name="join" />
-              <Stack.Screen name="oauth/callback" />
-            </Stack>
-            <StatusBar style="auto" />
+            <AuthGate>
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="index" />
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="admin" />
+                <Stack.Screen name="faq" />
+                <Stack.Screen name="invite" />
+                <Stack.Screen name="join" />
+                <Stack.Screen name="login" />
+                <Stack.Screen name="onboarding" />
+                <Stack.Screen name="paywall" />
+                <Stack.Screen name="signup" />
+                <Stack.Screen name="oauth/callback" />
+              </Stack>
+              <StatusBar style="auto" />
+            </AuthGate>
           </MemvoProvider>
         </QueryClientProvider>
       </trpc.Provider>

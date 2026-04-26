@@ -15,124 +15,177 @@ type AuthUser = {
   lastSignedIn: Date;
 };
 
-function mapSupabaseUser(): AuthUser | null {
-  return null;
+type AuthSnapshot = {
+  user: AuthUser | null;
+  loading: boolean;
+  error: Error | null;
+};
+
+type AuthListener = (snapshot: AuthSnapshot) => void;
+
+const authListeners = new Set<AuthListener>();
+let authSnapshot: AuthSnapshot = {
+  user: null,
+  loading: false,
+  error: null,
+};
+let authBootstrapPromise: Promise<void> | null = null;
+let authStateSubscription: { unsubscribe: () => void } | null = null;
+
+function mapSupabaseUser(authUser: {
+  id: string;
+  email?: string | null;
+  created_at?: string;
+  last_sign_in_at?: string | null;
+  identities?: Array<{ provider?: string | null }>;
+  user_metadata?: Record<string, unknown>;
+  app_metadata?: Record<string, unknown>;
+} | null): AuthUser | null {
+  if (!authUser) {
+    return null;
+  }
+
+  const metadata = authUser.user_metadata ?? {};
+  const appMetadata = authUser.app_metadata ?? {};
+  const identity = authUser.identities?.[0];
+
+  return {
+    id: authUser.id,
+    openId: authUser.id,
+    name:
+      (typeof metadata.full_name === 'string' ? metadata.full_name : undefined) ??
+      (typeof metadata.name === 'string' ? metadata.name : undefined) ??
+      null,
+    email: authUser.email ?? null,
+    loginMethod:
+      (typeof identity?.provider === 'string' ? identity.provider : undefined) ??
+      (typeof appMetadata.provider === 'string' ? appMetadata.provider : undefined) ??
+      null,
+    lastSignedIn: new Date(authUser.last_sign_in_at ?? authUser.created_at ?? Date.now()),
+  };
+}
+
+function emitAuthSnapshot(partial?: Partial<AuthSnapshot>) {
+  authSnapshot = {
+    ...authSnapshot,
+    ...partial,
+  };
+
+  for (const listener of authListeners) {
+    listener(authSnapshot);
+  }
+}
+
+async function refreshSharedAuthState() {
+  try {
+    emitAuthSnapshot({ loading: true, error: null });
+
+    if (!isSupabaseConfigured) {
+      emitAuthSnapshot({ user: null, loading: false, error: null });
+      return;
+    }
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError) {
+      throw sessionError;
+    }
+
+    emitAuthSnapshot({
+      user: mapSupabaseUser(session?.user ?? null),
+      loading: false,
+      error: null,
+    });
+  } catch (error) {
+    emitAuthSnapshot({
+      user: null,
+      loading: false,
+      error: error instanceof Error ? error : new Error('Failed to fetch user'),
+    });
+  }
+}
+
+function ensureSharedBootstrap() {
+  if (!authBootstrapPromise) {
+    authBootstrapPromise = refreshSharedAuthState().finally(() => {
+      authBootstrapPromise = null;
+    });
+  }
+
+  if (!authStateSubscription && isSupabaseConfigured) {
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      emitAuthSnapshot({
+        user: mapSupabaseUser(session?.user ?? null),
+        loading: false,
+        error: null,
+      });
+    });
+
+    authStateSubscription = data.subscription;
+  }
+
+  return authBootstrapPromise ?? Promise.resolve();
+}
+
+function subscribeToAuth(listener: AuthListener) {
+  authListeners.add(listener);
+  listener(authSnapshot);
+
+  return () => {
+    authListeners.delete(listener);
+  };
 }
 
 export function useAuth(options?: UseAuthOptions) {
   const { autoFetch = true } = options ?? {};
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+  const [state, setState] = useState<AuthSnapshot>(authSnapshot);
 
-  const fetchUser = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  useEffect(() => {
+    const unsubscribe = subscribeToAuth(setState);
 
-      if (!isSupabaseConfigured) {
-        setUser(null);
-        return;
-      }
-
-      const { data, error: userError } = await supabase.auth.getUser();
-      if (userError) {
-        throw userError;
-      }
-
-      const authUser = data.user;
-      if (!authUser) {
-        setUser(null);
-        return;
-      }
-
-      const identity = authUser.identities?.[0];
-      setUser({
-        id: authUser.id,
-        openId: authUser.id,
-        name:
-          (authUser.user_metadata?.full_name as string | undefined) ??
-          (authUser.user_metadata?.name as string | undefined) ??
-          null,
-        email: authUser.email ?? null,
-        loginMethod: identity?.provider ?? authUser.app_metadata?.provider ?? null,
-        lastSignedIn: new Date(authUser.last_sign_in_at ?? authUser.created_at ?? Date.now()),
-      });
-    } catch (err) {
-      const nextError = err instanceof Error ? err : new Error('Failed to fetch user');
-      setError(nextError);
-      setUser(null);
-    } finally {
-      setLoading(false);
+    if (autoFetch) {
+      void ensureSharedBootstrap();
+    } else {
+      emitAuthSnapshot({ loading: false });
     }
+
+    return unsubscribe;
+  }, [autoFetch]);
+
+  const refresh = useCallback(async () => {
+    await refreshSharedAuthState();
   }, []);
 
   const logout = useCallback(async () => {
     try {
+      emitAuthSnapshot({ loading: true, error: null });
+
       if (isSupabaseConfigured) {
-        const { error: signOutError } = await supabase.auth.signOut();
-        if (signOutError) {
-          throw signOutError;
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+          throw error;
         }
       }
-    } catch (err) {
-      const nextError = err instanceof Error ? err : new Error('Failed to sign out');
-      setError(nextError);
+
+      emitAuthSnapshot({ user: null, loading: false, error: null });
+    } catch (error) {
+      const nextError = error instanceof Error ? error : new Error('Failed to sign out');
+      emitAuthSnapshot({ user: null, loading: false, error: nextError });
       throw nextError;
-    } finally {
-      setUser(null);
     }
   }, []);
 
-  const isAuthenticated = useMemo(() => Boolean(user), [user]);
-
-  useEffect(() => {
-    if (!autoFetch) {
-      setLoading(false);
-      return;
-    }
-
-    void fetchUser();
-
-    if (!isSupabaseConfigured) {
-      return;
-    }
-
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
-      const authUser = session?.user;
-      if (!authUser) {
-        setUser(null);
-        setLoading(false);
-        return;
-      }
-
-      const identity = authUser.identities?.[0];
-      setUser({
-        id: authUser.id,
-        openId: authUser.id,
-        name:
-          (authUser.user_metadata?.full_name as string | undefined) ??
-          (authUser.user_metadata?.name as string | undefined) ??
-          null,
-        email: authUser.email ?? null,
-        loginMethod: identity?.provider ?? authUser.app_metadata?.provider ?? null,
-        lastSignedIn: new Date(authUser.last_sign_in_at ?? authUser.created_at ?? Date.now()),
-      });
-      setLoading(false);
-      setError(null);
-    });
-
-    return () => {
-      subscription.subscription.unsubscribe();
-    };
-  }, [autoFetch, fetchUser]);
+  const isAuthenticated = useMemo(() => Boolean(state.user), [state.user]);
 
   return {
-    user,
-    loading,
-    error,
+    user: state.user,
+    loading: state.loading,
+    error: state.error,
     isAuthenticated,
-    refresh: fetchUser,
+    refresh,
     logout,
   };
 }

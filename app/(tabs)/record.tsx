@@ -21,6 +21,7 @@ import {
   normalizeMeteringToBarHeight,
 } from '@/lib/memvo-recording-utils';
 import { MEMVO_PREVIEW_SPEECH_MESSAGE, resolveSpeechRecognitionApi } from '@/lib/memvo-speech';
+import { MEMVO_FREE_LIMIT_MESSAGE } from '@/lib/memvo-transcription';
 
 const TEAL = '#0F6E56';
 const BAR_COUNT = 28;
@@ -240,7 +241,23 @@ export default function RecordScreen() {
       const message = buildRecordingErrorMessage(error);
       console.error('Unable to stop recording', error);
       setRecordingError(message);
-      Alert.alert('Save failed', message);
+
+      if (message === MEMVO_FREE_LIMIT_MESSAGE) {
+        Alert.alert('Free limit reached', message, [
+          {
+            text: 'Maybe later',
+            style: 'cancel',
+          },
+          {
+            text: 'Upgrade to Pro',
+            onPress: () => {
+              router.push('/paywall?trigger=minutes');
+            },
+          },
+        ]);
+      } else {
+        Alert.alert('Save failed', message);
+      }
     } finally {
       setIsSaving(false);
     }
