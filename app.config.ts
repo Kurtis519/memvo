@@ -2,13 +2,13 @@
 import './scripts/load-env.js';
 import type { ExpoConfig } from 'expo/config';
 
-const bundleId = '{{bundle_id}}';
+const bundleId = 'com.memvo.mobile';
 const timestamp = bundleId.split('.').pop()?.replace(/^t/, '') ?? '';
 const schemeFromBundleId = `manus${timestamp}`;
 
 const env = {
   appName: 'Memvo',
-  appSlug: '{{project_name}}',
+  appSlug: 'memvo',
   logoUrl: 'https://d2xsxph8kpxj0f.cloudfront.net/310419663028501504/G2BGjWrYYw9fkXxmxXmQtz/memvo-icon-BePisVKkKEWZuKL97pdGhm.png',
   scheme: schemeFromBundleId,
   iosBundleId: bundleId,
@@ -87,7 +87,7 @@ const config: ExpoConfig = {
         resizeMode: 'contain',
         backgroundColor: '#FFFFFF',
         dark: {
-          backgroundColor: '#081A15',
+          backgroundColor: '#FFFFFF',
         },
       },
     ],
@@ -112,6 +112,9 @@ const config: ExpoConfig = {
     reactCompiler: true,
   },
   extra: {
+    eas: {
+      projectId: '73d0fd48-bc9d-4acc-bebf-88094899664d',
+    },
     appName: env.appName,
     logoUrl: env.logoUrl,
     supabaseUrl: env.supabaseUrl,

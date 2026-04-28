@@ -109,3 +109,23 @@
 - [x] Fix the Task 10 web auth-session inconsistency so logout, protected-route redirects, and the neutral root route all resolve from a single consistent session source
 - [x] Fix onboarding screen colors only so all 3 slides are legible on a white background without changing layout, structure, slide count, or navigation behavior
 - [x] Rewrite onboarding slide content with explicit hardcoded white backgrounds and visible text colors so slides 1-3 remain structurally unchanged but fully readable
+- [x] Fix global auth-screen backgrounds so login, signup, onboarding, and any related auth screens use explicit white outer containers and readable hardcoded text/input colors
+- [x] Search the project for dark green global background values and replace auth-screen usage with explicit white backgrounds
+- [x] Inspect and wire Google Sign-In with Expo AuthSession and Supabase Auth where current configuration permits
+- [ ] Verify which Google OAuth client IDs, secrets, redirect URIs, and Supabase provider settings are still required from the user to complete Google Sign-In end to end
+- [ ] Resolve the placeholder bundle identifier and scheme values in app.config.ts so Google OAuth client setup can use the actual iOS bundle ID, Android package name, and redirect scheme
+- [x] Determine the SHA-1 certificate fingerprint for the Memvo Expo development build and confirm whether it is the correct fingerprint to use for Google Sign-In setup
+- [x] Replace all placeholder bundle identifier values with com.memvo.app across the Memvo app configuration files
+- [x] Retrieve the Android SHA-1 fingerprint from the EAS development-build signing credentials after fixing the bundle identifier
+- [x] Replace the placeholder Expo slug with a valid Memvo slug so EAS project creation succeeds and Android signing credentials become accessible
+- [x] Add the EAS projectId to app.config.ts so the Memvo project links cleanly to Expo and Android signing credentials can be queried
+- [x] Generate the first Android EAS keystore for com.memvo.app if approved, because no existing Android credentials are currently set up for Memvo
+- [x] Create the first Android EAS keystore for com.memvo.app now that the user has approved it, then extract the exact SHA-1 fingerprint for Google Cloud Console
+- [x] Replace `com.memvo.app` with `com.memvo.mobile` everywhere in the Memvo project configuration and scripts
+- [x] Regenerate the Android EAS keystore for `com.memvo.mobile` and report the new SHA-1 fingerprint
+- [x] Use the refreshed Expo token to finish the com.memvo.mobile Android package migration, create the new EAS keystore for that identifier, and report the exact SHA-1 fingerprint
+- [x] Complete Google Sign-In with Expo AuthSession, Supabase signInWithIdToken, red error handling, and referral processing after Google signup
+- [x] Eliminate the remaining dark green background globally across login, signup, onboarding, and other auth-related screens by enforcing white root backgrounds and explicit text/input colors
+- [ ] Rewrite all 3 onboarding slides with fully visible hardcoded content matching the specified welcome, features, and pricing copy
+- [ ] Re-verify auth routing so first-time signed-out users see onboarding, returning signed-out users see login, and signed-in users go straight to the home feed
+- [ ] Validate email signup, email login, Google sign-in flow, onboarding visibility, and rebuild requirements for the completed Task 10 implementation

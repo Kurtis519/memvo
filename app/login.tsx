@@ -5,6 +5,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -13,9 +14,17 @@ import {
 import { router } from 'expo-router';
 
 import { ScreenContainer } from '@/components/screen-container';
+import { useGoogleSignIn } from '@/lib/google-auth';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const HEADING = '#1A1A1A';
+const BODY = '#555555';
+const CAPTION = '#888888';
+const INPUT_BG = '#F5F5F5';
+const INPUT_BORDER = '#E0E0E0';
+const WHITE = '#FFFFFF';
+const TEAL = '#0F6E56';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -25,9 +34,20 @@ export default function LoginScreen() {
   const [resetMessage, setResetMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
+  const { startGoogleSignIn, configStatus, isGoogleReady } = useGoogleSignIn();
 
   const trimmedEmail = email.trim().toLowerCase();
   const canSubmit = useMemo(() => EMAIL_REGEX.test(trimmedEmail) && password.trim().length >= 6, [password, trimmedEmail]);
+
+  const googleButtonDisabled = isGoogleSubmitting || (Platform.OS !== 'web' && !isGoogleReady);
+  const googleUnavailableMessage = useMemo(() => {
+    if (Platform.OS === 'web' || configStatus.hasNativeClientIds) {
+      return null;
+    }
+
+    return `Google Sign-In needs ${configStatus.missingNativeClientIds.join(', ')} in this build.`;
+  }, [configStatus.hasNativeClientIds, configStatus.missingNativeClientIds]);
 
   const handleSignIn = async () => {
     if (!isSupabaseConfigured) {
@@ -66,6 +86,23 @@ export default function LoginScreen() {
     }
   };
 
+  const handleGoogleAuth = async () => {
+    setIsGoogleSubmitting(true);
+    setAuthError(null);
+    setResetMessage(null);
+
+    try {
+      const result = await startGoogleSignIn();
+      if (!result.cancelled && !result.redirected) {
+        router.replace('/(tabs)' as Parameters<typeof router.replace>[0]);
+      }
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Google Sign-In failed. Please try again.');
+    } finally {
+      setIsGoogleSubmitting(false);
+    }
+  };
+
   const handleForgotPassword = async () => {
     if (!isSupabaseConfigured) {
       setAuthError('Supabase is not configured correctly in this build. Reload after the public auth settings finish syncing.');
@@ -96,30 +133,37 @@ export default function LoginScreen() {
   };
 
   return (
-    <ScreenContainer edges={['top', 'bottom', 'left', 'right']} className="bg-background px-5 pt-6 pb-8">
+    <ScreenContainer
+      edges={['top', 'bottom', 'left', 'right']}
+      containerClassName="bg-white"
+      className="bg-white"
+      style={styles.safeArea}
+    >
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        className="flex-1"
+        style={styles.keyboardAvoidingView}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
       >
-        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'space-between' }} keyboardShouldPersistTaps="handled">
-          <View className="gap-6">
-            <View className="items-center gap-4 pt-4">
-              <View className="h-20 w-20 items-center justify-center rounded-[26px] bg-primary">
-                <Text className="text-4xl font-bold text-white">M</Text>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          style={styles.scrollView}
+        >
+          <View style={styles.topBlock}>
+            <View style={styles.heroSection}>
+              <View style={styles.logoBox}>
+                <Text style={styles.logoText}>M</Text>
               </View>
-              <View className="items-center gap-2">
-                <Text className="text-3xl font-bold text-foreground">Welcome back</Text>
-                <Text className="text-center text-base leading-7 text-muted">
-                  Pick up where you left off and go straight back to your voice notes.
-                </Text>
+              <View style={styles.heroTextBlock}>
+                <Text style={styles.heading}>Welcome back</Text>
+                <Text style={styles.bodyText}>Pick up where you left off and go straight back to your voice notes.</Text>
               </View>
             </View>
 
-            <View className="rounded-[30px] border border-border bg-surface px-5 py-5">
-              <View className="gap-4">
-                <View className="gap-2">
-                  <Text className="text-sm font-medium text-foreground">Email</Text>
+            <View style={styles.card}>
+              <View style={styles.formStack}>
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.fieldLabel}>Email</Text>
                   <TextInput
                     value={email}
                     onChangeText={setEmail}
@@ -128,14 +172,14 @@ export default function LoginScreen() {
                     autoCorrect={false}
                     keyboardType="email-address"
                     textContentType="emailAddress"
-                    placeholderTextColor="#94A3B8"
-                    className="rounded-2xl border border-border bg-background px-4 py-4 text-base text-foreground"
+                    placeholderTextColor={CAPTION}
+                    style={styles.input}
                   />
                 </View>
 
-                <View className="gap-2">
-                  <Text className="text-sm font-medium text-foreground">Password</Text>
-                  <View className="flex-row items-center rounded-2xl border border-border bg-background px-4">
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.fieldLabel}>Password</Text>
+                  <View style={styles.passwordShell}>
                     <TextInput
                       value={password}
                       onChangeText={setPassword}
@@ -144,24 +188,24 @@ export default function LoginScreen() {
                       autoCorrect={false}
                       secureTextEntry={!showPassword}
                       textContentType="password"
-                      placeholderTextColor="#94A3B8"
-                      className="flex-1 py-4 text-base text-foreground"
+                      placeholderTextColor={CAPTION}
+                      style={styles.passwordInput}
                     />
                     <Pressable onPress={() => setShowPassword((current) => !current)}>
-                      <Text className="text-sm font-semibold text-primary">{showPassword ? 'Hide' : 'Show'}</Text>
+                      <Text style={styles.inlineActionText}>{showPassword ? 'Hide' : 'Show'}</Text>
                     </Pressable>
                   </View>
                 </View>
 
                 {authError ? (
-                  <View className="rounded-2xl border border-error/20 bg-error/10 px-4 py-3">
-                    <Text className="text-sm leading-6 text-error">{authError}</Text>
+                  <View style={styles.errorBox}>
+                    <Text style={styles.errorText}>{authError}</Text>
                   </View>
                 ) : null}
 
                 {resetMessage ? (
-                  <View className="rounded-2xl border border-success/20 bg-success/10 px-4 py-3">
-                    <Text className="text-sm leading-6 text-success">{resetMessage}</Text>
+                  <View style={styles.successBox}>
+                    <Text style={styles.successText}>{resetMessage}</Text>
                   </View>
                 ) : null}
 
@@ -172,13 +216,9 @@ export default function LoginScreen() {
                     void handleSignIn();
                   }}
                   disabled={!canSubmit || isSubmitting}
-                  className={`rounded-full px-5 py-4 ${!canSubmit || isSubmitting ? 'bg-primary/40' : 'bg-primary'}`}
+                  style={[styles.primaryButton, (!canSubmit || isSubmitting) && styles.primaryButtonDisabled]}
                 >
-                  {isSubmitting ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <Text className="text-center text-sm font-semibold text-white">Sign in</Text>
-                  )}
+                  {isSubmitting ? <ActivityIndicator color={WHITE} /> : <Text style={styles.primaryButtonText}>Sign in</Text>}
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -189,32 +229,44 @@ export default function LoginScreen() {
                   }}
                   disabled={isResetting}
                 >
-                  <Text className="text-center text-sm font-semibold text-primary">
-                    {isResetting ? 'Sending reset email…' : 'Forgot password?'}
-                  </Text>
+                  <Text style={styles.linkText}>{isResetting ? 'Sending reset email…' : 'Forgot password?'}</Text>
                 </TouchableOpacity>
 
-                <View className="flex-row items-center gap-3 py-1">
-                  <View className="h-px flex-1 bg-border" />
-                  <Text className="text-sm text-muted">or</Text>
-                  <View className="h-px flex-1 bg-border" />
+                <View style={styles.dividerRow}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.captionText}>or</Text>
+                  <View style={styles.dividerLine} />
                 </View>
 
-                <TouchableOpacity accessibilityRole="button" activeOpacity={0.85} className="rounded-full border border-border px-5 py-4">
-                  <Text className="text-center text-sm font-semibold text-foreground">Continue with Google</Text>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    void handleGoogleAuth();
+                  }}
+                  disabled={googleButtonDisabled}
+                  style={[styles.googleButton, googleButtonDisabled && styles.googleButtonDisabled]}
+                >
+                  {isGoogleSubmitting ? (
+                    <ActivityIndicator color={HEADING} />
+                  ) : (
+                    <Text style={styles.googleButtonText}>Continue with Google</Text>
+                  )}
                 </TouchableOpacity>
+
+                {googleUnavailableMessage ? <Text style={styles.helperText}>{googleUnavailableMessage}</Text> : null}
               </View>
             </View>
           </View>
 
-          <View className="items-center gap-3 pt-8">
+          <View style={styles.bottomBlock}>
             <TouchableOpacity
               accessibilityRole="button"
               activeOpacity={0.85}
               onPress={() => router.replace('/signup' as Parameters<typeof router.replace>[0])}
             >
-              <Text className="text-sm text-muted">
-                Don&apos;t have an account? <Text className="font-semibold text-primary">Sign up</Text>
+              <Text style={styles.bottomPrompt}>
+                Don&apos;t have an account? <Text style={styles.bottomPromptAccent}>Sign up</Text>
               </Text>
             </TouchableOpacity>
           </View>
@@ -223,3 +275,215 @@ export default function LoginScreen() {
     </ScreenContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  safeArea: {
+    backgroundColor: WHITE,
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+    backgroundColor: WHITE,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'space-between',
+    backgroundColor: WHITE,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 32,
+  },
+  topBlock: {
+    gap: 24,
+    backgroundColor: WHITE,
+  },
+  heroSection: {
+    alignItems: 'center',
+    gap: 16,
+    paddingTop: 16,
+    backgroundColor: WHITE,
+  },
+  logoBox: {
+    height: 80,
+    width: 80,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: TEAL,
+  },
+  logoText: {
+    color: WHITE,
+    fontSize: 36,
+    fontWeight: '700',
+  },
+  heroTextBlock: {
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: WHITE,
+  },
+  heading: {
+    color: HEADING,
+    fontSize: 30,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  bodyText: {
+    color: BODY,
+    fontSize: 16,
+    lineHeight: 28,
+    textAlign: 'center',
+  },
+  card: {
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: INPUT_BORDER,
+    backgroundColor: WHITE,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+  },
+  formStack: {
+    gap: 16,
+    backgroundColor: WHITE,
+  },
+  fieldGroup: {
+    gap: 8,
+    backgroundColor: WHITE,
+  },
+  fieldLabel: {
+    color: HEADING,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  input: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: INPUT_BORDER,
+    backgroundColor: INPUT_BG,
+    color: HEADING,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    fontSize: 16,
+  },
+  passwordShell: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: INPUT_BORDER,
+    backgroundColor: INPUT_BG,
+    paddingHorizontal: 16,
+  },
+  passwordInput: {
+    flex: 1,
+    paddingVertical: 16,
+    fontSize: 16,
+    color: HEADING,
+  },
+  inlineActionText: {
+    color: TEAL,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  errorBox: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F3C9C1',
+    backgroundColor: '#FFF2EF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  errorText: {
+    color: '#C2410C',
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  successBox: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#B7E4D3',
+    backgroundColor: '#ECFDF6',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  successText: {
+    color: TEAL,
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  primaryButton: {
+    borderRadius: 999,
+    backgroundColor: TEAL,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  primaryButtonDisabled: {
+    opacity: 0.4,
+  },
+  primaryButtonText: {
+    color: WHITE,
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  linkText: {
+    color: TEAL,
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 4,
+    backgroundColor: WHITE,
+  },
+  dividerLine: {
+    height: 1,
+    flex: 1,
+    backgroundColor: INPUT_BORDER,
+  },
+  captionText: {
+    color: CAPTION,
+    fontSize: 14,
+  },
+  googleButton: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: INPUT_BORDER,
+    backgroundColor: WHITE,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  googleButtonDisabled: {
+    opacity: 0.5,
+  },
+  googleButtonText: {
+    color: HEADING,
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  helperText: {
+    color: CAPTION,
+    fontSize: 13,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  bottomBlock: {
+    alignItems: 'center',
+    gap: 12,
+    paddingTop: 32,
+    backgroundColor: WHITE,
+  },
+  bottomPrompt: {
+    color: BODY,
+    fontSize: 14,
+  },
+  bottomPromptAccent: {
+    color: TEAL,
+    fontWeight: '600',
+  },
+});
