@@ -5,10 +5,7 @@ import { Platform, StyleSheet, Text, View } from 'react-native';
 
 import { useAuth } from '@/hooks/use-auth';
 import { readHasSeenOnboarding } from '@/lib/memvo-auth-flow';
-
-function matchesRoute(pathname: string, route: string) {
-  return pathname === route || pathname.startsWith(`${route}/`);
-}
+import { resolveAuthGateTarget } from '@/lib/memvo-auth-routing';
 
 function readInitialOnboardingState() {
   if (typeof window === 'undefined') {
@@ -28,14 +25,6 @@ function readInitialOnboardingState() {
   }
 
   return false;
-}
-
-function isPublicUtilityRoute(pathname: string) {
-  return matchesRoute(pathname, '/join') || matchesRoute(pathname, '/oauth/callback');
-}
-
-function isSignedOutRoute(pathname: string) {
-  return matchesRoute(pathname, '/onboarding') || matchesRoute(pathname, '/signup') || matchesRoute(pathname, '/login');
 }
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
@@ -66,37 +55,16 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const routeDecision = useMemo(() => {
-    if (loading || hasSeenOnboarding === null) {
-      return { ready: false, target: null as string | null };
-    }
-
-    if (isAuthenticated) {
-      const shouldRedirectToApp = isSignedOutRoute(pathname);
-      return {
-        ready: true,
-        target: shouldRedirectToApp ? '/' : null,
-      };
-    }
-
-    if (isPublicUtilityRoute(pathname)) {
-      return { ready: true, target: null as string | null };
-    }
-
-    if (!hasSeenOnboarding) {
-      const shouldStayOnOnboarding = matchesRoute(pathname, '/onboarding');
-      return {
-        ready: true,
-        target: shouldStayOnOnboarding ? null : '/onboarding',
-      };
-    }
-
-    const shouldStaySignedOut = matchesRoute(pathname, '/login') || matchesRoute(pathname, '/signup');
-    return {
-      ready: true,
-      target: shouldStaySignedOut ? null : '/login',
-    };
-  }, [hasSeenOnboarding, isAuthenticated, loading, pathname]);
+  const routeDecision = useMemo(
+    () =>
+      resolveAuthGateTarget({
+        pathname,
+        isAuthenticated,
+        loading,
+        hasSeenOnboarding,
+      }),
+    [hasSeenOnboarding, isAuthenticated, loading, pathname],
+  );
 
   useEffect(() => {
     if (!routeDecision.ready || !rootNavigationState?.key) {

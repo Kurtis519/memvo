@@ -4,6 +4,7 @@ import { Platform, StyleSheet, Text, View } from 'react-native';
 
 import { useAuth } from '@/hooks/use-auth';
 import { readHasSeenOnboarding } from '@/lib/memvo-auth-flow';
+import { getEntryTarget } from '@/lib/memvo-auth-routing';
 
 export default function IndexRoute() {
   const router = useRouter();
@@ -31,18 +32,21 @@ export default function IndexRoute() {
   }, []);
 
   useEffect(() => {
-    if (hasSeenOnboarding === null) {
+    const target = getEntryTarget({
+      isAuthenticated,
+      hasSeenOnboarding,
+    });
+
+    if (!target) {
       return;
     }
-
-    const target = isAuthenticated ? '/(tabs)' : hasSeenOnboarding ? '/login' : '/onboarding';
 
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       window.location.replace(target);
       return;
     }
 
-    router.replace(target);
+    router.replace(target as Parameters<typeof router.replace>[0]);
   }, [hasSeenOnboarding, isAuthenticated, router]);
 
   return (

@@ -112,8 +112,8 @@
 - [x] Fix global auth-screen backgrounds so login, signup, onboarding, and any related auth screens use explicit white outer containers and readable hardcoded text/input colors
 - [x] Search the project for dark green global background values and replace auth-screen usage with explicit white backgrounds
 - [x] Inspect and wire Google Sign-In with Expo AuthSession and Supabase Auth where current configuration permits
-- [ ] Verify which Google OAuth client IDs, secrets, redirect URIs, and Supabase provider settings are still required from the user to complete Google Sign-In end to end
-- [ ] Resolve the placeholder bundle identifier and scheme values in app.config.ts so Google OAuth client setup can use the actual iOS bundle ID, Android package name, and redirect scheme
+- [x] Verify which Google OAuth client IDs, secrets, redirect URIs, and Supabase provider settings are still required from the user to complete Google Sign-In end to end
+- [x] Resolve the placeholder bundle identifier and scheme values in app.config.ts so Google OAuth client setup can use the actual iOS bundle ID, Android package name, and redirect scheme
 - [x] Determine the SHA-1 certificate fingerprint for the Memvo Expo development build and confirm whether it is the correct fingerprint to use for Google Sign-In setup
 - [x] Replace all placeholder bundle identifier values with com.memvo.app across the Memvo app configuration files
 - [x] Retrieve the Android SHA-1 fingerprint from the EAS development-build signing credentials after fixing the bundle identifier
@@ -127,5 +127,10 @@
 - [x] Complete Google Sign-In with Expo AuthSession, Supabase signInWithIdToken, red error handling, and referral processing after Google signup
 - [x] Eliminate the remaining dark green background globally across login, signup, onboarding, and other auth-related screens by enforcing white root backgrounds and explicit text/input colors
 - [ ] Rewrite all 3 onboarding slides with fully visible hardcoded content matching the specified welcome, features, and pricing copy
-- [ ] Re-verify auth routing so first-time signed-out users see onboarding, returning signed-out users see login, and signed-in users go straight to the home feed
+- [x] Re-verify auth routing so first-time signed-out users see onboarding, returning signed-out users see login, and signed-in users go straight to the home feed
 - [ ] Validate email signup, email login, Google sign-in flow, onboarding visibility, and rebuild requirements for the completed Task 10 implementation
+- [x] Add the provided Google web, iOS, and Android public client IDs to the Memvo project configuration
+- [x] Clean up app.config.ts so iOS bundle ID stays com.memvo.app, Android package stays com.memvo.mobile, and native redirect expectations match the Google OAuth setup
+- [x] Validate the exact redirect URIs and app identifiers that must be added in Supabase Google auth settings and Google Cloud Console
+- [x] Run the final auth-routing verification for first-time signed-out, returning signed-out, and signed-in entry behavior
+- [x] Confirm whether a new development build is required for the Google auth changes and provide the exact rebuild command

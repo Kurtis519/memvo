@@ -2,19 +2,28 @@
 import './scripts/load-env.js';
 import type { ExpoConfig } from 'expo/config';
 
-const bundleId = 'com.memvo.mobile';
-const timestamp = bundleId.split('.').pop()?.replace(/^t/, '') ?? '';
-const schemeFromBundleId = `manus${timestamp}`;
+const iosBundleId = 'com.memvo.app';
+const androidPackage = 'com.memvo.mobile';
+const appSchemes = ['memvo', iosBundleId, androidPackage];
+const primaryScheme = appSchemes[0];
+const googleIosRedirectUri = `${iosBundleId}:/oauthredirect`;
+const googleAndroidRedirectUri = `${androidPackage}:/oauthredirect`;
 
 const env = {
   appName: 'Memvo',
   appSlug: 'memvo',
   logoUrl: 'https://d2xsxph8kpxj0f.cloudfront.net/310419663028501504/G2BGjWrYYw9fkXxmxXmQtz/memvo-icon-BePisVKkKEWZuKL97pdGhm.png',
-  scheme: schemeFromBundleId,
-  iosBundleId: bundleId,
-  androidPackage: bundleId,
+  scheme: primaryScheme,
+  schemes: appSchemes,
+  iosBundleId,
+  androidPackage,
   supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? '',
   supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? '',
+  googleWebClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '',
+  googleIosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '',
+  googleAndroidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? '',
+  googleIosRedirectUri,
+  googleAndroidRedirectUri,
 };
 
 const config: ExpoConfig = {
@@ -23,7 +32,7 @@ const config: ExpoConfig = {
   version: '1.0.0',
   orientation: 'portrait',
   icon: './assets/images/icon.png',
-  scheme: env.scheme,
+  scheme: env.schemes,
   userInterfaceStyle: 'automatic',
   newArchEnabled: true,
   ios: {
@@ -49,12 +58,10 @@ const config: ExpoConfig = {
       {
         action: 'VIEW',
         autoVerify: true,
-        data: [
-          {
-            scheme: env.scheme,
-            host: '*',
-          },
-        ],
+        data: env.schemes.map((scheme) => ({
+          scheme,
+          host: '*',
+        })),
         category: ['BROWSABLE', 'DEFAULT'],
       },
     ],
@@ -119,6 +126,14 @@ const config: ExpoConfig = {
     logoUrl: env.logoUrl,
     supabaseUrl: env.supabaseUrl,
     supabaseAnonKey: env.supabaseAnonKey,
+    googleWebClientId: env.googleWebClientId,
+    googleIosClientId: env.googleIosClientId,
+    googleAndroidClientId: env.googleAndroidClientId,
+    googleIosRedirectUri: env.googleIosRedirectUri,
+    googleAndroidRedirectUri: env.googleAndroidRedirectUri,
+    appSchemes: env.schemes,
+    iosBundleId: env.iosBundleId,
+    androidPackage: env.androidPackage,
   },
 };
 
