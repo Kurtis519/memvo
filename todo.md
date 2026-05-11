@@ -134,3 +134,16 @@
 - [x] Validate the exact redirect URIs and app identifiers that must be added in Supabase Google auth settings and Google Cloud Console
 - [x] Run the final auth-routing verification for first-time signed-out, returning signed-out, and signed-in entry behavior
 - [x] Confirm whether a new development build is required for the Google auth changes and provide the exact rebuild command
+- [ ] Run a fresh iOS EAS development build after the Google OAuth console updates and capture the install link or QR details
+- [ ] Run a fresh Android EAS development build after the iOS build completes and capture the install link or QR details
+- [ ] Deliver both development build results with installation guidance for the user's devices
+- [ ] Skip the iOS development build for now and defer it until Apple credentials are ready
+- [ ] Validate Expo authentication again and, if valid, run only the Android EAS development build
+- [ ] Return the Android install link or QR details after the Android build completes
+- [x] Validate the newly provided Expo token and, if it succeeds, start the Android EAS development build immediately
+- [x] Rewrite the onboarding screen from scratch as a self-contained component with fully hardcoded inline styles and visible slide content for all 3 slides
+- [x] Confirm the onboarding Next and Back navigation behavior and ensure Get Started routes to Signup
+- [x] Validate that all 3 onboarding slides render visible content after the rewrite
+- [x] Run the Android EAS development build after the onboarding rewrite completes
+- [ ] Deliver the Android APK install link or QR details and confirm uninstall guidance for any previous dev build
+- [ ] Re-verify email signup to home feed behavior and returning logged-in user routing as part of Task 10 completion

@@ -78,7 +78,11 @@ importers:
         specifier: ~15.0.9
         version: 15.0.9(expo@54.0.29)
       expo-dev-client:
+<<<<<<< Updated upstream
         specifier: ^6.0.21
+=======
+        specifier: ~6.0.21
+>>>>>>> Stashed changes
         version: 6.0.21(expo@54.0.29)
       expo-file-system:
         specifier: ~19.0.21
