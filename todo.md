@@ -147,3 +147,6 @@
 - [x] Run the Android EAS development build after the onboarding rewrite completes
 - [ ] Deliver the Android APK install link or QR details and confirm uninstall guidance for any previous dev build
 - [ ] Re-verify email signup to home feed behavior and returning logged-in user routing as part of Task 10 completion
+- [x] Fix the onboarding Get started button so slide 3 navigates to the Signup screen
+- [x] Confirm the Signup and Login screens are properly reachable in the current navigation stack
+- [x] Validate the full onboarding, signup, sign-out, and sign-in routing flow after the navigation fix

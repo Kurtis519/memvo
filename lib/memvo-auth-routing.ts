@@ -57,7 +57,7 @@ export function resolveAuthGateTarget({
   if (!hasSeenOnboarding) {
     return {
       ready: true,
-      target: matchesRoute(pathname, '/onboarding') ? null : '/onboarding',
+      target: matchesRoute(pathname, '/onboarding') || matchesRoute(pathname, '/signup') ? null : '/onboarding',
     };
   }
 

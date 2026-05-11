@@ -52,6 +52,17 @@ describe('Memvo auth entry routing', () => {
     ).toEqual({ ready: true, target: '/onboarding' });
   });
 
+  it('allows a first-time signed-out user to remain on signup after pressing Get started', () => {
+    expect(
+      resolveAuthGateTarget({
+        pathname: '/signup',
+        isAuthenticated: false,
+        loading: false,
+        hasSeenOnboarding: false,
+      }),
+    ).toEqual({ ready: true, target: null });
+  });
+
   it('keeps the login route for a returning signed-out user inside the auth gate', () => {
     expect(
       resolveAuthGateTarget({

@@ -173,8 +173,11 @@ export default function OnboardingScreen() {
       return;
     }
 
-    await writeHasSeenOnboarding(true);
-    router.replace('/signup' as Parameters<typeof router.replace>[0]);
+    try {
+      await writeHasSeenOnboarding(true);
+    } finally {
+      router.replace('/signup' as Parameters<typeof router.replace>[0]);
+    }
   };
 
   return (
