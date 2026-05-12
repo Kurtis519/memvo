@@ -116,10 +116,15 @@ function getSpeechRecognitionApi(): SpeechRecognitionApi | null {
     return cachedSpeechRecognitionApi;
   }
 
-  cachedSpeechRecognitionApi = resolveSpeechRecognitionApi(
-    Platform.OS,
-    () => require('expo-speech-recognition') as SpeechRecognitionApi,
-  );
+  try {
+    cachedSpeechRecognitionApi = resolveSpeechRecognitionApi(
+      Platform.OS,
+      () => require('expo-speech-recognition') as SpeechRecognitionApi,
+    );
+  } catch (error) {
+    console.warn('Speech recognition module is not available in this runtime.', error);
+    cachedSpeechRecognitionApi = null;
+  }
 
   return cachedSpeechRecognitionApi;
 }

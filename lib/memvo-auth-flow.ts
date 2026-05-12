@@ -36,3 +36,14 @@ export async function writeHasSeenOnboarding(value: boolean) {
 
   await AsyncStorage.setItem(MEMVO_ONBOARDING_SEEN_STORAGE_KEY, serialized);
 }
+
+export async function resetHasSeenOnboarding() {
+  const webStorage = getWebStorage();
+
+  if (webStorage) {
+    webStorage.removeItem(MEMVO_ONBOARDING_SEEN_STORAGE_KEY);
+    return;
+  }
+
+  await AsyncStorage.removeItem(MEMVO_ONBOARDING_SEEN_STORAGE_KEY);
+}

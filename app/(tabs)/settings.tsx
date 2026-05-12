@@ -34,6 +34,7 @@ import {
   MEMVO_FOLDERS_STORAGE_KEY,
   MEMVO_RECENT_SEARCHES_STORAGE_KEY,
 } from '@/lib/memvo-organization';
+import { resetHasSeenOnboarding } from '@/lib/memvo-auth-flow';
 
 const SETTINGS_PREFERENCES_STORAGE_KEY = 'memvo_settings_preferences_v1';
 const SUPPORT_EMAIL = 'support@memvo.app';
@@ -236,6 +237,16 @@ export default function SettingsScreen() {
       MEMVO_RECENT_SEARCHES_STORAGE_KEY,
       SETTINGS_PREFERENCES_STORAGE_KEY,
     ]);
+  };
+
+  const handleResetOnboarding = async () => {
+    try {
+      await resetHasSeenOnboarding();
+      router.replace('/onboarding');
+    } catch (error) {
+      console.error('Failed to reset onboarding state', error);
+      Alert.alert('Unable to reset onboarding', 'Please try again in a moment.');
+    }
   };
 
   const handleSaveName = async () => {
@@ -634,6 +645,13 @@ export default function SettingsScreen() {
                   onValueChange={(value) => setPreferences((current) => ({ ...current, notificationsEnabled: value }))}
                 />
               }
+            />
+            <Row
+              label="Reset onboarding"
+              helper="Clear the first-run flag and reopen the onboarding slides for testing"
+              onPress={() => {
+                void handleResetOnboarding();
+              }}
             />
             <Row
               label="Storage used"

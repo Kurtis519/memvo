@@ -1,5 +1,5 @@
 export const MEMVO_PREVIEW_SPEECH_MESSAGE =
-  'Speech recognition is not available in preview mode. Install the development build to test transcription.';
+  'Speech recognition requires the full app build. A development build is being prepared.';
 
 export type SpeechRecognitionApi = {
   ExpoSpeechRecognitionModule: {

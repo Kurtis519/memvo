@@ -150,3 +150,6 @@
 - [x] Fix the onboarding Get started button so slide 3 navigates to the Signup screen
 - [x] Confirm the Signup and Login screens are properly reachable in the current navigation stack
 - [x] Validate the full onboarding, signup, sign-out, and sign-in routing flow after the navigation fix
+- [x] Add a Reset onboarding control in Settings → App preferences that clears the onboarding-seen flag for testing
+- [x] Restore graceful Record-screen fallback so missing ExpoSpeechRecognition never crashes Expo Go and instead shows the development-build message
+- [x] Validate that reset onboarding restores the first-run flow and that the Record screen no longer crashes when the native speech module is unavailable

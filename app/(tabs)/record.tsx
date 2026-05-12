@@ -153,7 +153,12 @@ export default function RecordScreen() {
       return false;
     }
 
-    return !resolveSpeechRecognitionApi(Platform.OS, () => require('expo-speech-recognition'));
+    try {
+      return !resolveSpeechRecognitionApi(Platform.OS, () => require('expo-speech-recognition'));
+    } catch (error) {
+      console.warn('Speech recognition module is not available in this runtime.', error);
+      return true;
+    }
   }, []);
 
   const startRecording = useCallback(async () => {
