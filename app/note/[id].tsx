@@ -1,5 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { createAudioPlayer, setAudioModeAsync, useAudioPlayerStatus } from 'expo-audio';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -9,6 +10,7 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  Platform,
   Text,
   TextInput,
   TouchableOpacity,
@@ -16,13 +18,34 @@ import {
 } from 'react-native';
 
 import { ScreenContainer } from '@/components/screen-container';
-import { buildExportText, parseTranscriptTimeSeconds } from '@/lib/memvo-note-detail';
-import { getSuggestedTags } from '@/lib/memvo-organization';
+import {
+  applySpeakerNamesToTranscriptLine,
+  buildExportText,
+  buildNoteExportFileStem,
+  buildPdfHtml,
+  getSpeakerDisplayName,
+  getSpeakerLabelFromTranscriptLine,
+  listTranscriptSpeakers,
+  parseTranscriptTimeSeconds,
+} from '@/lib/memvo-note-detail';
+import {
+  buildAiChatUsageLabel,
+  resolveAiChatUsageState,
+  type MemvoAiChatMessage,
+  type MemvoAiChatUsageState,
+} from '@/lib/memvo-ai-chat';
+import { getMoodAppearance, getSuggestedTags, isJournalStyleNote } from '@/lib/memvo-organization';
 import { useMemvo } from '@/lib/memvo-store';
 import { buildFeedTimestampLabel, formatDuration } from '@/lib/memvo-recording-utils';
+import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { trpc } from '@/lib/trpc';
 
 const TEAL = '#0F6E56';
 const TEAL_TINT = '#E1F5EE';
+
+type NoteAiChatMessage = MemvoAiChatMessage & {
+  id: string;
+};
 
 function AudioPlayerBar({ uri }: { uri: string }) {
   const player = useMemo(() => createAudioPlayer({ uri }), [uri]);
@@ -108,7 +131,9 @@ export default function NoteDetailScreen() {
     toggleStar,
     updateNoteTags,
     updateNoteTitle,
+    updateNoteSpeakers,
     userProfile,
+    refreshUserProfile,
   } = useMemvo();
   const note = getNoteById(id);
   const [draftTitle, setDraftTitle] = useState(note?.title ?? '');
@@ -116,11 +141,38 @@ export default function NoteDetailScreen() {
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const [tagDraft, setTagDraft] = useState(note?.tags.join(', ') ?? '');
   const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const [speakerEditorOpen, setSpeakerEditorOpen] = useState(false);
+  const [activeSpeakerLabel, setActiveSpeakerLabel] = useState<string | null>(null);
+  const [speakerDraft, setSpeakerDraft] = useState('');
+  const [aiChatOpen, setAiChatOpen] = useState(false);
+  const [aiQuestion, setAiQuestion] = useState('');
+  const [aiMessages, setAiMessages] = useState<NoteAiChatMessage[]>([]);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiUsage, setAiUsage] = useState<MemvoAiChatUsageState>(() =>
+    resolveAiChatUsageState({
+      plan: userProfile?.plan ?? 'free',
+      isAdmin: userProfile?.isAdmin,
+      aiChatQueriesToday: userProfile?.aiChatQueriesToday ?? 0,
+      aiChatResetDate: userProfile?.aiChatResetDate ?? null,
+    }),
+  );
+  const askAiMutation = trpc.memvo.askAiAboutNote.useMutation();
 
   useEffect(() => {
     setDraftTitle(note?.title ?? '');
     setTagDraft(note?.tags.join(', ') ?? '');
   }, [note?.id, note?.tags, note?.title]);
+
+  useEffect(() => {
+    setAiUsage(
+      resolveAiChatUsageState({
+        plan: userProfile?.plan ?? 'free',
+        isAdmin: userProfile?.isAdmin,
+        aiChatQueriesToday: userProfile?.aiChatQueriesToday ?? 0,
+        aiChatResetDate: userProfile?.aiChatResetDate ?? null,
+      }),
+    );
+  }, [userProfile?.aiChatQueriesToday, userProfile?.aiChatResetDate, userProfile?.isAdmin, userProfile?.plan]);
 
   if (!note) {
     return (
@@ -138,9 +190,12 @@ export default function NoteDetailScreen() {
   const currentFolder = getFolderById(note.folderId);
   const suggestedTags = getSuggestedTags(notes, note.tags);
   const transcriptLines = note.transcript ? note.transcript.split(/\n+/).filter(Boolean) : [];
+  const transcriptSpeakerLabels = listTranscriptSpeakers(note.transcript);
   const isPro = Boolean(userProfile && (userProfile.plan === 'pro' || userProfile.plan === 'admin' || userProfile.isAdmin));
   const summaryText = note.summary || 'Memvo is still preparing this note summary.';
   const visibleSummary = summaryExpanded ? summaryText : summaryText.slice(0, 220);
+  const aiUsageLabel = buildAiChatUsageLabel(aiUsage);
+  const moodAppearance = isJournalStyleNote(note) ? getMoodAppearance(note.mood) : null;
 
   const saveTitle = () => {
     void updateNoteTitle(note.id, draftTitle);
@@ -159,6 +214,31 @@ export default function NoteDetailScreen() {
       return;
     }
     setTagDraft([...currentTags, tag].join(', '));
+  };
+
+  const openSpeakerEditor = (speakerLabel: string) => {
+    setActiveSpeakerLabel(speakerLabel);
+    setSpeakerDraft(note.speakers?.[speakerLabel] ?? '');
+    setSpeakerEditorOpen(true);
+  };
+
+  const saveSpeakerName = async () => {
+    if (!activeSpeakerLabel) {
+      setSpeakerEditorOpen(false);
+      return;
+    }
+
+    const trimmedName = speakerDraft.trim();
+    if (!trimmedName) {
+      Alert.alert('Name required', 'Enter a name for this speaker before saving.');
+      return;
+    }
+
+    await updateNoteSpeakers(note.id, {
+      ...(note.speakers ?? {}),
+      [activeSpeakerLabel]: trimmedName,
+    });
+    setSpeakerEditorOpen(false);
   };
 
   const copyTranscript = async () => {
@@ -189,8 +269,8 @@ export default function NoteDetailScreen() {
       return;
     }
 
-    const filename = `${note.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'memvo-note'}.txt`;
-    const fileUri = `${directory}${filename}`;
+    const fileStem = buildNoteExportFileStem(note);
+    const fileUri = `${directory}${fileStem}.txt`;
     await FileSystem.writeAsStringAsync(fileUri, buildExportText(note));
 
     if (await Sharing.isAvailableAsync()) {
@@ -199,6 +279,122 @@ export default function NoteDetailScreen() {
     }
 
     Alert.alert('Export saved', `Saved a text export to ${fileUri}`);
+  };
+
+  const exportAsPdf = async () => {
+    if (!isPro) {
+      return;
+    }
+
+    if (Platform.OS === 'web') {
+      Alert.alert('PDF export unavailable', 'PDF export is available in the native iOS and Android app.');
+      return;
+    }
+
+    const directory = FileSystem.documentDirectory;
+    if (!directory) {
+      Alert.alert('Export unavailable', 'This device does not expose a writable documents directory right now.');
+      return;
+    }
+
+    try {
+      const fileStem = buildNoteExportFileStem(note);
+      const targetUri = `${directory}${fileStem}.pdf`;
+      const html = buildPdfHtml(note);
+      const { uri } = await Print.printToFileAsync({ html });
+      const existingFile = await FileSystem.getInfoAsync(targetUri);
+      if (existingFile.exists) {
+        await FileSystem.deleteAsync(targetUri, { idempotent: true });
+      }
+      await FileSystem.moveAsync({ from: uri, to: targetUri });
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(targetUri, {
+          UTI: '.pdf',
+          mimeType: 'application/pdf',
+          dialogTitle: 'Share Memvo note',
+        });
+        return;
+      }
+
+      Alert.alert('Export saved', `Saved a PDF export to ${targetUri}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Memvo could not generate this PDF right now.';
+      Alert.alert('PDF export failed', message);
+    }
+  };
+
+  const openAiChat = () => {
+    if (!note.transcript?.trim()) {
+      Alert.alert('Transcript required', 'Ask AI becomes available after this note finishes transcribing.');
+      return;
+    }
+
+    setAiError(null);
+    setAiChatOpen(true);
+  };
+
+  const sendAiQuestion = async () => {
+    const trimmedQuestion = aiQuestion.trim();
+    if (!trimmedQuestion) {
+      return;
+    }
+
+    if (!note.transcript?.trim()) {
+      Alert.alert('Transcript required', 'Ask AI becomes available after this note finishes transcribing.');
+      return;
+    }
+
+    if (!isSupabaseConfigured) {
+      Alert.alert('Ask AI unavailable', 'Ask AI requires the signed-in cloud experience.');
+      return;
+    }
+
+    if (!aiUsage.isUnlimited && aiUsage.atLimit) {
+      setAiError('Upgrade to Pro for unlimited AI chat');
+      return;
+    }
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    if (!accessToken) {
+      router.push('/login');
+      return;
+    }
+
+    setAiError(null);
+
+    try {
+      const result = await askAiMutation.mutateAsync({
+        accessToken,
+        noteId: note.id,
+        question: trimmedQuestion,
+        history: aiMessages.map((message) => ({
+          role: message.role,
+          content: message.content,
+        })),
+      });
+
+      setAiMessages((current) => [
+        ...current,
+        {
+          id: `user-${Date.now()}`,
+          role: 'user',
+          content: trimmedQuestion,
+        },
+        {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: result.answer,
+        },
+      ]);
+      setAiQuestion('');
+      setAiUsage(result.usage);
+      await refreshUserProfile().catch(() => null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Ask AI could not answer right now.';
+      setAiError(message);
+    }
   };
 
   const handleDelete = () => {
@@ -240,9 +436,14 @@ export default function NoteDetailScreen() {
               placeholder="Untitled note"
               className="text-3xl font-bold text-foreground"
             />
-            {note.mood ? (
-              <View className="self-start rounded-full bg-[#EEF8F4] px-3 py-1.5">
-                <Text className="text-xs font-semibold capitalize text-primary">Mood · {note.mood}</Text>
+            {moodAppearance ? (
+              <View
+                className="self-start rounded-full px-3 py-1.5"
+                style={{ backgroundColor: moodAppearance.backgroundColor }}
+              >
+                <Text style={{ color: moodAppearance.textColor, fontSize: 12, fontWeight: '700' }}>
+                  Mood · {moodAppearance.label}
+                </Text>
               </View>
             ) : null}
             <View className="gap-3 rounded-2xl bg-background px-4 py-4">
@@ -306,6 +507,27 @@ export default function NoteDetailScreen() {
               {visibleSummary}
               {!summaryExpanded && summaryText.length > 220 ? '…' : ''}
             </Text>
+            <View className="mt-4 rounded-2xl bg-background px-4 py-4">
+              <View className="flex-row items-center justify-between gap-4">
+                <View className="flex-1">
+                  <Text className="text-sm font-semibold text-foreground">Ask AI</Text>
+                  <Text className="mt-1 text-xs text-muted">Ask questions about this one note and get answers grounded in its transcript.</Text>
+                  <Text className="mt-2 text-xs font-semibold text-primary">{aiUsageLabel}</Text>
+                </View>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  activeOpacity={0.82}
+                  onPress={openAiChat}
+                  disabled={!note.transcript?.trim()}
+                  style={{ backgroundColor: note.transcript?.trim() ? TEAL : '#B9C2C8', borderRadius: 999, paddingHorizontal: 16, paddingVertical: 11 }}
+                >
+                  <Text className="text-sm font-semibold text-white">Ask AI</Text>
+                </TouchableOpacity>
+              </View>
+              {!aiUsage.isUnlimited ? (
+                <Text className="mt-3 text-xs leading-5 text-muted">Free includes 3 AI questions per day. Pro unlocks unlimited chat.</Text>
+              ) : null}
+            </View>
           </View>
 
           <View className="rounded-[28px] border border-border bg-surface p-4">
@@ -333,8 +555,28 @@ export default function NoteDetailScreen() {
             </View>
             {transcriptLines.length > 0 ? (
               <View className="mt-3 gap-3">
+                {transcriptSpeakerLabels.length > 0 ? (
+                  <View className="mb-1 flex-row flex-wrap gap-2">
+                    {transcriptSpeakerLabels.map((speakerLabel) => (
+                      <TouchableOpacity
+                        key={`${note.id}-${speakerLabel}`}
+                        accessibilityRole="button"
+                        activeOpacity={0.82}
+                        onPress={() => openSpeakerEditor(speakerLabel)}
+                        style={{ backgroundColor: '#EEF8F4', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 }}
+                      >
+                        <Text style={{ color: TEAL, fontSize: 12, fontWeight: '700' }}>
+                          {getSpeakerDisplayName(speakerLabel, note.speakers)}
+                        </Text>
+                        <Text style={{ color: '#4B7C6E', fontSize: 11, marginTop: 2 }}>{speakerLabel}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : null}
                 {transcriptLines.map((line, index) => {
                   const seekSeconds = parseTranscriptTimeSeconds(line);
+                  const speakerLabel = getSpeakerLabelFromTranscriptLine(line);
+                  const visibleLine = applySpeakerNamesToTranscriptLine(line, note.speakers);
                   return (
                     <TouchableOpacity
                       key={`${note.id}-line-${index}`}
@@ -347,7 +589,19 @@ export default function NoteDetailScreen() {
                         Alert.alert('Playback shortcut', `Jump playback from the player controls to ${formatDuration(seekSeconds * 1000)}.`);
                       }}
                     >
-                      <Text className="text-sm leading-7 text-foreground">{line}</Text>
+                      {speakerLabel ? (
+                        <TouchableOpacity
+                          accessibilityRole="button"
+                          activeOpacity={0.82}
+                          onPress={() => openSpeakerEditor(speakerLabel)}
+                          style={{ alignSelf: 'flex-start', backgroundColor: TEAL_TINT, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 8 }}
+                        >
+                          <Text style={{ color: TEAL, fontSize: 12, fontWeight: '700' }}>
+                            {getSpeakerDisplayName(speakerLabel, note.speakers)}
+                          </Text>
+                        </TouchableOpacity>
+                      ) : null}
+                      <Text className="text-sm leading-7 text-foreground">{visibleLine}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -374,9 +628,20 @@ export default function NoteDetailScreen() {
               <TouchableOpacity accessibilityRole="button" activeOpacity={0.8} onPress={() => void exportAsText()} className="rounded-2xl bg-background px-4 py-3">
                 <Text className="text-sm font-semibold text-foreground">Export as .txt</Text>
               </TouchableOpacity>
-              <View className="rounded-2xl bg-background px-4 py-3 opacity-60">
-                <Text className="text-sm font-semibold text-foreground">Export as PDF {isPro ? '(coming soon)' : '(Pro only)'}</Text>
-              </View>
+              {isPro ? (
+                <TouchableOpacity accessibilityRole="button" activeOpacity={0.8} onPress={() => void exportAsPdf()} className="rounded-2xl bg-background px-4 py-3">
+                  <Text className="text-sm font-semibold text-foreground">Export as PDF</Text>
+                </TouchableOpacity>
+              ) : (
+                <View className="rounded-2xl bg-background px-4 py-3 opacity-60">
+                  <View className="flex-row items-center justify-between gap-3">
+                    <Text className="text-sm font-semibold text-foreground">Export as PDF</Text>
+                    <View style={{ backgroundColor: '#EEF2F4', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 }}>
+                      <Text style={{ color: '#5F6D73', fontSize: 11, fontWeight: '700' }}>Pro only</Text>
+                    </View>
+                  </View>
+                </View>
+              )}
               <TouchableOpacity accessibilityRole="button" activeOpacity={0.8} onPress={handleDelete} className="rounded-2xl bg-[#FEF2F2] px-4 py-3">
                 <Text className="text-sm font-semibold text-error">Delete note</Text>
               </TouchableOpacity>
@@ -428,6 +693,34 @@ export default function NoteDetailScreen() {
         </View>
       </Modal>
 
+      <Modal visible={speakerEditorOpen} animationType="slide" transparent onRequestClose={() => setSpeakerEditorOpen(false)}>
+        <View className="flex-1 justify-end bg-black/20">
+          <View className="rounded-t-[32px] bg-background px-5 pb-8 pt-5">
+            <View className="flex-row items-center justify-between">
+              <Text className="text-lg font-semibold text-foreground">Rename speaker</Text>
+              <TouchableOpacity accessibilityRole="button" activeOpacity={0.8} onPress={() => setSpeakerEditorOpen(false)}>
+                <Text className="text-sm font-semibold text-primary">Close</Text>
+              </TouchableOpacity>
+            </View>
+            <Text className="mt-3 text-sm leading-6 text-muted">
+              {activeSpeakerLabel ? `Update ${activeSpeakerLabel} everywhere in this transcript.` : 'Choose a name for this speaker.'}
+            </Text>
+            <TextInput
+              value={speakerDraft}
+              onChangeText={setSpeakerDraft}
+              placeholder="Enter speaker name"
+              placeholderTextColor="#8A9198"
+              className="mt-4 rounded-2xl bg-surface px-4 py-4 text-base text-foreground"
+              returnKeyType="done"
+              onSubmitEditing={() => void saveSpeakerName()}
+            />
+            <TouchableOpacity accessibilityRole="button" activeOpacity={0.82} onPress={() => void saveSpeakerName()} className="mt-5 rounded-2xl bg-primary px-4 py-4">
+              <Text className="text-center text-sm font-semibold text-white">Save speaker</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <Modal visible={folderPickerOpen} animationType="slide" transparent onRequestClose={() => setFolderPickerOpen(false)}>
         <View className="flex-1 justify-end bg-black/20">
           <View className="rounded-t-[32px] bg-background px-5 pb-8 pt-5">
@@ -467,6 +760,86 @@ export default function NoteDetailScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={aiChatOpen} animationType="slide" transparent onRequestClose={() => setAiChatOpen(false)}>
+        <View className="flex-1 justify-end bg-black/20">
+          <View className="max-h-[88%] rounded-t-[32px] bg-background px-5 pb-8 pt-5">
+            <View className="flex-row items-center justify-between gap-4">
+              <View className="flex-1">
+                <Text className="text-lg font-semibold text-foreground">Ask AI about this note</Text>
+                <Text className="mt-1 text-sm text-muted">{aiUsageLabel}</Text>
+              </View>
+              <TouchableOpacity accessibilityRole="button" activeOpacity={0.8} onPress={() => setAiChatOpen(false)}>
+                <Text className="text-sm font-semibold text-primary">Close</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView className="mt-4 max-h-[48%]" contentContainerStyle={{ gap: 12, paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
+              {aiMessages.length > 0 ? (
+                aiMessages.map((message) => (
+                  <View
+                    key={message.id}
+                    style={{
+                      alignSelf: message.role === 'user' ? 'flex-end' : 'stretch',
+                      backgroundColor: message.role === 'user' ? TEAL : '#F3F5F6',
+                      borderRadius: 22,
+                      paddingHorizontal: 16,
+                      paddingVertical: 14,
+                      maxWidth: '92%',
+                    }}
+                  >
+                    <Text style={{ color: message.role === 'user' ? '#FFFFFF' : '#11212A', fontSize: 14, lineHeight: 22 }}>
+                      {message.content}
+                    </Text>
+                  </View>
+                ))
+              ) : (
+                <View className="rounded-2xl bg-surface px-4 py-4">
+                  <Text className="text-sm leading-6 text-muted">Ask follow-up questions about the transcript, summary, action items, or what happened in this note.</Text>
+                </View>
+              )}
+            </ScrollView>
+
+            {aiError ? (
+              <View className="mt-4 rounded-2xl bg-[#FEF2F2] px-4 py-3">
+                <Text className="text-sm leading-6 text-error">{aiError}</Text>
+              </View>
+            ) : null}
+
+            <TextInput
+              value={aiQuestion}
+              onChangeText={setAiQuestion}
+              placeholder="Ask a question about this note"
+              placeholderTextColor="#8A9198"
+              multiline
+              textAlignVertical="top"
+              className="mt-4 min-h-[110px] rounded-2xl bg-surface px-4 py-4 text-base text-foreground"
+            />
+
+            {!aiUsage.isUnlimited && aiUsage.atLimit ? (
+              <TouchableOpacity accessibilityRole="button" activeOpacity={0.82} onPress={() => router.push('/paywall')} className="mt-4 rounded-2xl border border-border px-4 py-4">
+                <Text className="text-center text-sm font-semibold text-foreground">Go Pro for unlimited AI chat</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            <TouchableOpacity
+              accessibilityRole="button"
+              activeOpacity={0.82}
+              onPress={() => void sendAiQuestion()}
+              disabled={askAiMutation.isPending || !aiQuestion.trim()}
+              style={{
+                marginTop: 16,
+                backgroundColor: askAiMutation.isPending || !aiQuestion.trim() ? '#B9C2C8' : TEAL,
+                borderRadius: 18,
+                paddingHorizontal: 16,
+                paddingVertical: 16,
+              }}
+            >
+              <Text className="text-center text-sm font-semibold text-white">{askAiMutation.isPending ? 'Asking AI…' : 'Send question'}</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>

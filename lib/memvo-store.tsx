@@ -21,6 +21,7 @@ import type {
   MemvoUserProfile,
 } from '@/lib/memvo-domain';
 import {
+  loadSpeechRecognitionModule,
   MEMVO_PREVIEW_SPEECH_MESSAGE,
   resolveSpeechRecognitionApi,
   type SpeechRecognitionApi,
@@ -94,6 +95,7 @@ type MemvoContextValue = {
   toggleStar: (noteId: string) => Promise<void>;
   updateNoteTitle: (noteId: string, title: string) => Promise<void>;
   updateNoteTags: (noteId: string, tags: string[]) => Promise<void>;
+  updateNoteSpeakers: (noteId: string, speakers: Record<string, string> | null) => Promise<void>;
   deleteNote: (noteId: string) => Promise<void>;
 };
 
@@ -119,7 +121,7 @@ function getSpeechRecognitionApi(): SpeechRecognitionApi | null {
   try {
     cachedSpeechRecognitionApi = resolveSpeechRecognitionApi(
       Platform.OS,
-      () => require('expo-speech-recognition') as SpeechRecognitionApi,
+      loadSpeechRecognitionModule,
     );
   } catch (error) {
     console.warn('Speech recognition module is not available in this runtime.', error);
@@ -195,6 +197,14 @@ function normalizeStoredNotes(raw: unknown): MemvoNote[] {
       lastError: current.lastError ?? null,
       isTranscribingLive: current.isTranscribingLive ?? false,
       mood: typeof current.mood === 'string' ? current.mood : null,
+      speakers:
+        current.speakers && typeof current.speakers === 'object' && !Array.isArray(current.speakers)
+          ? Object.fromEntries(
+              Object.entries(current.speakers as Record<string, unknown>).filter(
+                (entry): entry is [string, string] => typeof entry[0] === 'string' && typeof entry[1] === 'string',
+              ),
+            )
+          : null,
       aiProcessingStatus:
         current.aiProcessingStatus === 'processing' || current.aiProcessingStatus === 'complete' || current.aiProcessingStatus === 'failed' || current.aiProcessingStatus === 'skipped'
           ? current.aiProcessingStatus
@@ -292,6 +302,7 @@ export function MemvoProvider({ children }: PropsWithChildren) {
       action_items: note.actionItems,
       tags: note.tags,
       mood: note.mood,
+      speakers: note.speakers ?? null,
       is_starred: note.isStarred,
       sync_status: note.syncStatus,
       transcription_engine: note.transcriptionEngine,
@@ -337,6 +348,8 @@ export function MemvoProvider({ children }: PropsWithChildren) {
         referredByCode: null,
         bonusMinutes: 0,
         minutesUsedThisMonth: 0,
+        aiChatQueriesToday: 0,
+        aiChatResetDate: null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
@@ -358,7 +371,7 @@ export function MemvoProvider({ children }: PropsWithChildren) {
 
     const { data } = await supabase
       .from('user_profiles')
-      .select('id,email,full_name,avatar_url,plan,is_admin,manual_pro,referral_code,referred_by_code,bonus_minutes,minutes_used_this_month,created_at,updated_at')
+      .select('*')
       .eq('id', authUser.id)
       .single();
 
@@ -375,6 +388,8 @@ export function MemvoProvider({ children }: PropsWithChildren) {
         referredByCode: null,
         bonusMinutes: 0,
         minutesUsedThisMonth: 0,
+        aiChatQueriesToday: 0,
+        aiChatResetDate: null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
@@ -393,6 +408,8 @@ export function MemvoProvider({ children }: PropsWithChildren) {
       referredByCode: data.referred_by_code ?? null,
       bonusMinutes: Number(data.bonus_minutes ?? 0),
       minutesUsedThisMonth: Number(data.minutes_used_this_month ?? 0),
+      aiChatQueriesToday: Number(data.ai_chat_queries_today ?? 0),
+      aiChatResetDate: typeof data.ai_chat_reset_date === 'string' ? data.ai_chat_reset_date : null,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     });
@@ -517,6 +534,14 @@ export function MemvoProvider({ children }: PropsWithChildren) {
           summary: typeof row.summary === 'string' ? row.summary : note.summary,
           folderId: typeof row.folder_id === 'string' ? row.folder_id : note.folderId,
           actionItems: Array.isArray(row.action_items) ? row.action_items.filter((value): value is string => typeof value === 'string') : note.actionItems,
+          speakers:
+            row.speakers && typeof row.speakers === 'object' && !Array.isArray(row.speakers)
+              ? Object.fromEntries(
+                  Object.entries(row.speakers as Record<string, unknown>).filter(
+                    (entry): entry is [string, string] => typeof entry[0] === 'string' && typeof entry[1] === 'string',
+                  ),
+                )
+              : note.speakers ?? null,
           tags: Array.isArray(row.tags) ? row.tags.filter((value): value is string => typeof value === 'string') : note.tags,
           mood: typeof row.mood === 'string' ? row.mood : note.mood,
           isStarred: typeof row.is_starred === 'boolean' ? row.is_starred : note.isStarred,
@@ -968,6 +993,7 @@ export function MemvoProvider({ children }: PropsWithChildren) {
       lastError: null,
       isTranscribingLive: false,
       mood: null,
+      speakers: null,
       aiProcessingStatus: 'idle',
       aiProcessedAt: null,
       aiError: null,
@@ -1207,6 +1233,30 @@ export function MemvoProvider({ children }: PropsWithChildren) {
     await syncNoteToSupabase(nextNote);
   }, [notes, syncNoteToSupabase, updateNote]);
 
+  const updateNoteSpeakers = useCallback(async (noteId: string, speakers: Record<string, string> | null) => {
+    const target = notes.find((note) => note.id === noteId);
+    if (!target) {
+      return;
+    }
+
+    const normalizedSpeakers = speakers
+      ? Object.fromEntries(
+          Object.entries(speakers)
+            .map(([label, value]) => [label.trim(), value.trim()] as const)
+            .filter(([label, value]) => label.length > 0 && value.length > 0),
+        )
+      : null;
+
+    const nextNote = {
+      ...target,
+      speakers: normalizedSpeakers && Object.keys(normalizedSpeakers).length > 0 ? normalizedSpeakers : null,
+      updatedAt: new Date().toISOString(),
+    };
+
+    updateNote(noteId, () => nextNote);
+    await syncNoteToSupabase(nextNote);
+  }, [notes, syncNoteToSupabase, updateNote]);
+
   const deleteNote = useCallback(async (noteId: string) => {
     const target = notes.find((note) => note.id === noteId);
     if (!target) {
@@ -1285,6 +1335,7 @@ export function MemvoProvider({ children }: PropsWithChildren) {
       toggleStar,
       updateNoteTitle,
       updateNoteTags,
+      updateNoteSpeakers,
       deleteNote,
     }),
     [
@@ -1309,6 +1360,7 @@ export function MemvoProvider({ children }: PropsWithChildren) {
       syncQueue,
       toggleStar,
       updateNoteTags,
+      updateNoteSpeakers,
       updateNoteTitle,
       userProfile,
     ],

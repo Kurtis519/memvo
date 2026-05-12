@@ -1,0 +1,8 @@
+{
+  "query": "select id, title, left(coalesce(transcript, ''), 600) as transcript_preview from public.notes where transcript is not null and transcript <> '' order by updated_at desc nulls last limit 3;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user R1tGxn9FRjG17Yt.d7fa8f6e68d6 --database G2BGjWrYYw9fkXxmxXmQtz --execute select id, title, left(coalesce(transcript, ''), 600) as transcript_preview from public.notes where transcript is not null and transcript <> '' order by updated_at desc nulls last limit 3;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1064 (42000) at line 1: You have an error in your SQL syntax; check the manual that corresponds to your TiDB version for the right syntax to use line 1 column 174 near \"nulls last limit 3\""
+  ]
+}

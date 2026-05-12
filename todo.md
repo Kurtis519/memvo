@@ -146,10 +146,22 @@
 - [x] Validate that all 3 onboarding slides render visible content after the rewrite
 - [x] Run the Android EAS development build after the onboarding rewrite completes
 - [ ] Deliver the Android APK install link or QR details and confirm uninstall guidance for any previous dev build
-- [ ] Re-verify email signup to home feed behavior and returning logged-in user routing as part of Task 10 completion
+- [x] Re-verify email signup to home feed behavior and returning logged-in user routing as part of Task 10 completion
 - [x] Fix the onboarding Get started button so slide 3 navigates to the Signup screen
 - [x] Confirm the Signup and Login screens are properly reachable in the current navigation stack
 - [x] Validate the full onboarding, signup, sign-out, and sign-in routing flow after the navigation fix
 - [x] Add a Reset onboarding control in Settings → App preferences that clears the onboarding-seen flag for testing
 - [x] Restore graceful Record-screen fallback so missing ExpoSpeechRecognition never crashes Expo Go and instead shows the development-build message
 - [x] Validate that reset onboarding restores the first-run flow and that the Record screen no longer crashes when the native speech module is unavailable
+- [ ] Replace every eager expo-speech-recognition or ExpoWebSpeechRecognition import with guarded dynamic loading so Expo Go never crashes during module evaluation
+- [ ] Update every speech-recognition usage path to handle a null module and show the temporary development-build fallback message on the Record screen
+- [ ] Validate in preview and tests that the Record screen no longer crashes in Expo Go and the app continues working after dismissing any recoverable error
+- [x] Review the Task 11 specification, map its requirements to the current Memvo app state, and prepare the next implementation plan
+- [x] Task 11 Part 1: build speaker renaming on note detail with persisted per-note speaker mappings
+- [x] Task 11 Part 2: add Ask AI note chat with Claude responses, session history, and free-versus-Pro daily query limits
+- [x] Task 11 Part 3: complete Pro-only mood pills on note detail and home plus Library mood insights
+- [x] Task 11 Part 4: complete Pro-only memory-lite topic cluster cards on the home feed
+- [x] Task 11 Part 5: add Pro-only PDF export on note detail with native share support
+- [x] Task 11 Part 6: finish launch bug fixes for speech fallback, white backgrounds, auth routing, and admin Pro access
+- [x] Task 11 Part 7: run the final Android development build and deliver APK link, QR code, uninstall guidance, and installation steps
+- [x] Review and validate Task 11 Part 5 Pro PDF export after the implementation is complete

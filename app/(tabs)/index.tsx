@@ -12,6 +12,7 @@ import {
 import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 import { ScreenContainer } from '@/components/screen-container';
+import { buildTopicClusters, getMoodAppearance, isJournalStyleNote } from '@/lib/memvo-organization';
 import { useMemvo } from '@/lib/memvo-store';
 import {
   dismissReferralBanner,
@@ -160,25 +161,19 @@ export default function HomeScreen() {
 
   const displayName = useMemo(() => getDisplayName(userProfile?.email), [userProfile?.email]);
   const initials = useMemo(() => getInitials(userProfile?.email), [userProfile?.email]);
+  const isPro = Boolean(userProfile && (userProfile.plan === 'pro' || userProfile.plan === 'admin' || userProfile.isAdmin || userProfile.manualPro));
   const todayLabel = useMemo(
     () => new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'short', day: 'numeric' }).format(new Date()),
     [],
   );
 
   const tagClusters = useMemo<TagCluster[]>(() => {
-    const counts = new Map<string, number>();
-    for (const note of notes) {
-      for (const tag of note.tags) {
-        const normalized = tag.trim().replace(/^#/, '');
-        if (!normalized) continue;
-        counts.set(normalized, (counts.get(normalized) ?? 0) + 1);
-      }
+    if (!isPro) {
+      return [];
     }
 
-    return [...counts.entries()]
-      .map(([label, count]) => ({ id: label, label, count }))
-      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
-  }, [notes]);
+    return buildTopicClusters(notes, { max: 8, minTotalNotes: 5 });
+  }, [isPro, notes]);
 
   const filteredNotes = useMemo(() => {
     if (!selectedTag) return notes;
@@ -315,34 +310,48 @@ export default function HomeScreen() {
             ) : null}
 
             {tagClusters.length > 0 ? (
-              <FlatList
-                data={tagClusters}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={{ gap: 12 }}
-                renderItem={({ item }) => {
-                  const active = selectedTag === item.id;
-                  return (
-                    <TouchableOpacity
-                      accessibilityRole="button"
-                      activeOpacity={0.85}
-                      onPress={() => setSelectedTag((current) => (current === item.id ? null : item.id))}
-                      style={{
-                        paddingHorizontal: 16,
-                        paddingVertical: 14,
-                        borderRadius: 20,
-                        backgroundColor: active ? TEAL : LIGHT_TEAL,
-                      }}
-                    >
-                      <Text style={{ color: active ? '#FFFFFF' : TEAL, fontWeight: '700' }}>#{item.label}</Text>
-                      <Text style={{ color: active ? '#DFF7EF' : TEAL, marginTop: 4, fontSize: 12 }}>
-                        {item.count} {item.count === 1 ? 'note' : 'notes'}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                }}
-              />
+              <View className="gap-3">
+                <View className="flex-row items-center justify-between gap-3">
+                  <Text className="text-sm font-semibold uppercase tracking-[0.2em] text-muted">Topics</Text>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    activeOpacity={0.82}
+                    onPress={() => router.push(selectedTag ? `/search?tag=${encodeURIComponent(selectedTag)}` : '/search')}
+                  >
+                    <Text style={{ color: '#085041', fontSize: 13, fontWeight: '700' }}>See all topics</Text>
+                  </TouchableOpacity>
+                </View>
+                <FlatList
+                  data={tagClusters}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  keyExtractor={(item) => item.id}
+                  contentContainerStyle={{ gap: 12 }}
+                  renderItem={({ item }) => {
+                    const active = selectedTag === item.id;
+                    return (
+                      <TouchableOpacity
+                        accessibilityRole="button"
+                        activeOpacity={0.85}
+                        onPress={() => setSelectedTag((current) => (current === item.id ? null : item.id))}
+                        style={{
+                          paddingHorizontal: 18,
+                          paddingVertical: 14,
+                          borderRadius: 22,
+                          backgroundColor: '#E1F5EE',
+                          borderWidth: active ? 1.5 : 0,
+                          borderColor: active ? '#085041' : 'transparent',
+                        }}
+                      >
+                        <Text style={{ color: '#085041', fontWeight: '700' }}>{item.label}</Text>
+                        <Text style={{ color: '#085041', marginTop: 4, fontSize: 12 }}>
+                          {item.count} {item.count === 1 ? 'note' : 'notes'}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  }}
+                />
+              </View>
             ) : null}
           </View>
         }
@@ -361,6 +370,7 @@ export default function HomeScreen() {
           const hiddenTagCount = Math.max(0, item.tags.length - visibleTags.length);
           const showRetry = item.syncStatus === 'failed' && queueItem;
           const folderName = folders.find((folder) => folder.id === item.folderId)?.name;
+          const cardMood = isPro && isJournalStyleNote(item) ? getMoodAppearance(item.mood) : null;
 
           return (
             <Swipeable
@@ -409,6 +419,18 @@ export default function HomeScreen() {
                 </Text>
 
                 <View className="mt-3 flex-row flex-wrap items-center gap-2">
+                  {cardMood ? (
+                    <View
+                      style={{
+                        backgroundColor: cardMood.backgroundColor,
+                        borderRadius: 999,
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                      }}
+                    >
+                      <Text style={{ color: cardMood.textColor, fontSize: 12, fontWeight: '600' }}>{cardMood.label}</Text>
+                    </View>
+                  ) : null}
                   {folderName ? (
                     <View className="rounded-full bg-background px-3 py-1.5">
                       <Text className="text-xs font-medium text-muted">{folderName}</Text>

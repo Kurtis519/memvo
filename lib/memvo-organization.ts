@@ -32,6 +32,35 @@ export type MemvoSearchResult = {
   matchedField: 'title' | 'transcript' | 'summary' | 'tags';
 };
 
+export type MemvoMoodTone = 'positive' | 'reflective' | 'excited' | 'stressed' | 'focused' | 'grateful' | 'uncertain';
+
+export type MemvoMoodAppearance = {
+  tone: MemvoMoodTone;
+  label: string;
+  backgroundColor: string;
+  textColor: string;
+};
+
+export type MemvoMoodInsight = {
+  tone: MemvoMoodTone;
+  label: string;
+  count: number;
+  backgroundColor: string;
+  textColor: string;
+};
+
+export type MemvoWeeklyMoodInsights = {
+  dominant: MemvoMoodInsight | null;
+  items: MemvoMoodInsight[];
+  summary: string | null;
+};
+
+export type MemvoTopicCluster = {
+  id: string;
+  label: string;
+  count: number;
+};
+
 const DEFAULT_FOLDER_DEFINITIONS = [
   { name: 'All Notes', slug: 'all-notes' },
   { name: 'Starred', slug: 'starred' },
@@ -39,6 +68,16 @@ const DEFAULT_FOLDER_DEFINITIONS = [
   { name: 'Meetings', slug: 'meetings' },
   { name: 'Ideas', slug: 'ideas' },
 ] as const;
+
+const MEMVO_MOOD_APPEARANCES: Record<MemvoMoodTone, MemvoMoodAppearance> = {
+  positive: { tone: 'positive', label: 'Positive', backgroundColor: '#EAF3DE', textColor: '#27500A' },
+  reflective: { tone: 'reflective', label: 'Reflective', backgroundColor: '#EEEDFE', textColor: '#3C3489' },
+  excited: { tone: 'excited', label: 'Excited', backgroundColor: '#FAEEDA', textColor: '#633806' },
+  stressed: { tone: 'stressed', label: 'Stressed', backgroundColor: '#FCEBEB', textColor: '#791F1F' },
+  focused: { tone: 'focused', label: 'Focused', backgroundColor: '#E6F1FB', textColor: '#0C447C' },
+  grateful: { tone: 'grateful', label: 'Grateful', backgroundColor: '#E1F5EE', textColor: '#085041' },
+  uncertain: { tone: 'uncertain', label: 'Uncertain', backgroundColor: '#F5F5F5', textColor: '#555555' },
+};
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -50,6 +89,28 @@ function startOfDay(date: Date) {
 
 function normalizeTag(tag: string) {
   return tag.trim().replace(/^#/, '').toLowerCase();
+}
+
+function normalizeMoodTone(mood: string | null | undefined): MemvoMoodTone | null {
+  if (!mood) {
+    return null;
+  }
+
+  const normalized = mood.trim().toLowerCase();
+  if (!normalized || normalized === 'neutral') {
+    return null;
+  }
+
+  return normalized in MEMVO_MOOD_APPEARANCES ? (normalized as MemvoMoodTone) : null;
+}
+
+export function isJournalStyleNote(note: MemvoNote) {
+  return note.tags.some((tag) => normalizeTag(tag) === 'journal' || normalizeTag(tag) === 'journals');
+}
+
+export function getMoodAppearance(mood: string | null | undefined): MemvoMoodAppearance | null {
+  const tone = normalizeMoodTone(mood);
+  return tone ? MEMVO_MOOD_APPEARANCES[tone] : null;
 }
 
 export function createId(prefix: string) {
@@ -395,5 +456,71 @@ export function buildRecentActivity(notes: MemvoNote[], now = new Date()) {
       count: weekNotes.length,
       totalMinutes: Math.round(weekNotes.reduce((sum, note) => sum + note.durationSeconds, 0) / 60),
     },
+  };
+}
+
+export function buildTopicClusters(notes: MemvoNote[], options?: { max?: number; minTotalNotes?: number }) {
+  const max = options?.max ?? 8;
+  const minTotalNotes = options?.minTotalNotes ?? 5;
+
+  if (notes.length < minTotalNotes) {
+    return [] as MemvoTopicCluster[];
+  }
+
+  const counts = new Map<string, number>();
+  for (const note of notes) {
+    for (const tag of note.tags) {
+      const normalized = tag.trim().replace(/^#/, '');
+      if (!normalized) {
+        continue;
+      }
+      counts.set(normalized, (counts.get(normalized) ?? 0) + 1);
+    }
+  }
+
+  return [...counts.entries()]
+    .map(([label, count]) => ({ id: label, label, count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+    .slice(0, max);
+}
+
+export function buildWeeklyMoodInsights(notes: MemvoNote[], now = new Date()): MemvoWeeklyMoodInsights {
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - 6);
+  weekStart.setHours(0, 0, 0, 0);
+
+  const counts = new Map<MemvoMoodTone, number>();
+  for (const note of notes) {
+    if (Date.parse(note.recordedAt) < weekStart.getTime()) {
+      continue;
+    }
+
+    const tone = normalizeMoodTone(note.mood);
+    if (!tone) {
+      continue;
+    }
+
+    counts.set(tone, (counts.get(tone) ?? 0) + 1);
+  }
+
+  const items = [...counts.entries()]
+    .map(([tone, count]) => ({
+      ...MEMVO_MOOD_APPEARANCES[tone],
+      count,
+    }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+
+  const dominant = items[0] ?? null;
+  const summary = dominant
+    ? `This week: mostly ${dominant.label} (${dominant.count} ${dominant.count === 1 ? 'note' : 'notes'})${items
+        .slice(1)
+        .map((item) => ` · ${item.count} ${item.label}`)
+        .join('')}`
+    : null;
+
+  return {
+    dominant,
+    items,
+    summary,
   };
 }

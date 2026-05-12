@@ -1,5 +1,5 @@
 export const MEMVO_PREVIEW_SPEECH_MESSAGE =
-  'Speech recognition requires the full app build. A development build is being prepared.';
+  'Recording requires the development build. Tap here to learn more.';
 
 export type SpeechRecognitionApi = {
   ExpoSpeechRecognitionModule: {
@@ -8,6 +8,18 @@ export type SpeechRecognitionApi = {
   addSpeechRecognitionListener: (eventName: string, listener: (event: unknown) => void) => { remove: () => void };
   supportsOnDeviceRecognition: () => boolean;
 };
+
+let SpeechRecognitionModule: unknown = null;
+
+try {
+  SpeechRecognitionModule = require('expo-speech-recognition');
+} catch (_error) {
+  SpeechRecognitionModule = null;
+}
+
+export function loadSpeechRecognitionModule() {
+  return SpeechRecognitionModule;
+}
 
 function isSpeechRecognitionApi(value: unknown): value is SpeechRecognitionApi {
   if (!value || typeof value !== 'object') {
@@ -25,7 +37,7 @@ function isSpeechRecognitionApi(value: unknown): value is SpeechRecognitionApi {
 
 export function resolveSpeechRecognitionApi(
   platformOS: string,
-  loader: () => unknown,
+  loader: () => unknown = loadSpeechRecognitionModule,
   warn: (message: string, error: unknown) => void = console.warn,
 ): SpeechRecognitionApi | null {
   if (platformOS === 'web') {

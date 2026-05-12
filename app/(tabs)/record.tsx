@@ -20,7 +20,7 @@ import {
   formatDuration,
   normalizeMeteringToBarHeight,
 } from '@/lib/memvo-recording-utils';
-import { MEMVO_PREVIEW_SPEECH_MESSAGE, resolveSpeechRecognitionApi } from '@/lib/memvo-speech';
+import { loadSpeechRecognitionModule, MEMVO_PREVIEW_SPEECH_MESSAGE, resolveSpeechRecognitionApi } from '@/lib/memvo-speech';
 import { MEMVO_FREE_LIMIT_MESSAGE } from '@/lib/memvo-transcription';
 
 const TEAL = '#0F6E56';
@@ -154,7 +154,7 @@ export default function RecordScreen() {
     }
 
     try {
-      return !resolveSpeechRecognitionApi(Platform.OS, () => require('expo-speech-recognition'));
+      return !resolveSpeechRecognitionApi(Platform.OS, loadSpeechRecognitionModule);
     } catch (error) {
       console.warn('Speech recognition module is not available in this runtime.', error);
       return true;
@@ -281,9 +281,19 @@ export default function RecordScreen() {
           ) : null}
 
           {isPreviewSpeechUnavailable ? (
-            <View className="rounded-2xl border border-[#F0D9AE] bg-[#FFF7E7] px-4 py-3">
+            <TouchableOpacity
+              accessibilityRole="button"
+              activeOpacity={0.85}
+              onPress={() => {
+                Alert.alert(
+                  'Development build required',
+                  'Speech recognition is temporarily unavailable in Expo Go. Install the latest development build to test live transcription on this screen.',
+                );
+              }}
+              className="rounded-2xl border border-[#F0D9AE] bg-[#FFF7E7] px-4 py-3"
+            >
               <Text className="text-sm font-medium text-[#8A5B00]">{MEMVO_PREVIEW_SPEECH_MESSAGE}</Text>
-            </View>
+            </TouchableOpacity>
           ) : null}
 
           <View className="items-center gap-3 pt-2">

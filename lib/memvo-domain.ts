@@ -4,6 +4,7 @@ export type MemvoSyncStatus = 'pending' | 'uploading' | 'transcribing' | 'comple
 export type MemvoTranscriptionEngine = 'on-device' | 'whisper';
 export type MemvoAiProcessingStatus = 'idle' | 'processing' | 'complete' | 'failed' | 'skipped';
 export type MemvoMood = string | null;
+export type MemvoSpeakerMap = Record<string, string>;
 export type MemvoFeature =
   | 'record'
   | 'offlinePlayback'
@@ -29,6 +30,8 @@ export interface MemvoUserProfile {
   referredByCode: string | null;
   bonusMinutes: number;
   minutesUsedThisMonth: number;
+  aiChatQueriesToday: number;
+  aiChatResetDate: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -79,6 +82,7 @@ export interface MemvoNote {
   lastError: string | null;
   isTranscribingLive: boolean;
   mood: MemvoMood;
+  speakers?: MemvoSpeakerMap | null;
   aiProcessingStatus: MemvoAiProcessingStatus;
   aiProcessedAt: string | null;
   aiError: string | null;

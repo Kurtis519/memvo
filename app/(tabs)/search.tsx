@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
+import { useLocalSearchParams } from 'expo-router';
 import {
   ActivityIndicator,
   FlatList,
@@ -83,6 +84,7 @@ function FilterChip({
 }
 
 export default function SearchScreen() {
+  const { tag } = useLocalSearchParams<{ tag?: string }>();
   const { folders, notes, recentSearches, removeRecentSearch, saveRecentSearch } = useMemvo();
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -104,6 +106,15 @@ export default function SearchScreen() {
 
     return () => clearTimeout(timer);
   }, [query]);
+
+  useEffect(() => {
+    if (typeof tag !== 'string') {
+      return;
+    }
+
+    const normalized = tag.trim().replace(/^#/, '');
+    setFilters((current) => ({ ...current, tag: normalized || null }));
+  }, [tag]);
 
   const allTags = useMemo(() => {
     const counts = new Map<string, number>();

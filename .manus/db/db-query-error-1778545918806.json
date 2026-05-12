@@ -1,0 +1,8 @@
+{
+  "query": "ALTER TABLE public.notes ADD COLUMN IF NOT EXISTS speakers JSON NULL;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user R1tGxn9FRjG17Yt.d7fa8f6e68d6 --database G2BGjWrYYw9fkXxmxXmQtz --execute ALTER TABLE public.notes ADD COLUMN IF NOT EXISTS speakers JSON NULL;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1142 (42000) at line 1: ALTER command denied to user 'R1tGxn9FRjG17Yt.d7fa8f6e68d6'@'%' for table 'notes'"
+  ]
+}

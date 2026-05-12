@@ -6,6 +6,7 @@ import { ScreenContainer } from '@/components/screen-container';
 import {
   MEMVO_MAX_FREE_CUSTOM_FOLDERS,
   buildRecentActivity,
+  buildWeeklyMoodInsights,
   buildTimelineSections,
   countCustomFolders,
   filterNotesByFilters,
@@ -59,7 +60,7 @@ export default function LibraryScreen() {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'timeline'>('list');
 
-  const canCreateUnlimitedFolders = Boolean(userProfile && (userProfile.plan === 'pro' || userProfile.plan === 'admin' || userProfile.isAdmin));
+  const canCreateUnlimitedFolders = Boolean(userProfile && (userProfile.plan === 'pro' || userProfile.plan === 'admin' || userProfile.isAdmin || userProfile.manualPro));
   const customFolderCount = countCustomFolders(folders);
   const folderLimitReached = !canCreateUnlimitedFolders && customFolderCount >= MEMVO_MAX_FREE_CUSTOM_FOLDERS;
   const selectedFolder = folders.find((folder) => folder.id === selectedFolderId) ?? null;
@@ -84,6 +85,7 @@ export default function LibraryScreen() {
 
   const timelineSections = useMemo(() => buildTimelineSections(visibleNotes), [visibleNotes]);
   const activity = useMemo(() => buildRecentActivity(notes), [notes]);
+  const moodInsights = useMemo(() => buildWeeklyMoodInsights(notes), [notes]);
 
   const handleSubmitFolder = async () => {
     const trimmed = draftFolderName.trim();
@@ -229,6 +231,30 @@ export default function LibraryScreen() {
             <TouchableOpacity accessibilityRole="button" activeOpacity={0.82} onPress={() => setSelectedFolderId(null)}>
               <Text className="text-xs font-semibold text-primary">Clear</Text>
             </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {canCreateUnlimitedFolders && moodInsights.summary ? (
+          <View className="rounded-[24px] border border-border bg-surface p-4">
+            <Text className="text-sm font-semibold uppercase tracking-[0.2em] text-muted">Mood insights</Text>
+            <Text className="mt-3 text-sm leading-6 text-foreground">{moodInsights.summary}</Text>
+            <View className="mt-3 flex-row flex-wrap gap-2">
+              {moodInsights.items.map((item) => (
+                <View
+                  key={item.tone}
+                  style={{
+                    backgroundColor: item.backgroundColor,
+                    borderRadius: 999,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                  }}
+                >
+                  <Text style={{ color: item.textColor, fontSize: 12, fontWeight: '700' }}>
+                    {item.label} · {item.count}
+                  </Text>
+                </View>
+              ))}
+            </View>
           </View>
         ) : null}
 

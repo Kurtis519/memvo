@@ -1,0 +1,9 @@
+{
+  "query": "SELECT COLUMN_NAME, DATA_TYPE FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'user_profiles' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user R1tGxn9FRjG17Yt.d7fa8f6e68d6 --database G2BGjWrYYw9fkXxmxXmQtz --execute SELECT COLUMN_NAME, DATA_TYPE FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'user_profiles' ORDER BY ORDINAL_POSITION;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1917
+}
