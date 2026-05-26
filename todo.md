@@ -165,3 +165,4 @@
 - [x] Task 11 Part 6: finish launch bug fixes for speech fallback, white backgrounds, auth routing, and admin Pro access
 - [x] Task 11 Part 7: run the final Android development build and deliver APK link, QR code, uninstall guidance, and installation steps
 - [x] Review and validate Task 11 Part 5 Pro PDF export after the implementation is complete
+- [x] Verify that the preview build profile includes the required EXPO_PUBLIC Supabase variables and add any missing Expo project secrets before rebuilding the Android preview APK
