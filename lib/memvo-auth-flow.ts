@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
 export const MEMVO_ONBOARDING_SEEN_STORAGE_KEY = 'memvo_onboarding_seen_v1';
+export const MEMVO_PENDING_SIGNUP_STORAGE_KEY = 'memvo_pending_signup_transition_v1';
 
 function getWebStorage() {
   if (Platform.OS !== 'web' || typeof window === 'undefined') {
@@ -15,35 +16,83 @@ function getWebStorage() {
   }
 }
 
-export async function readHasSeenOnboarding() {
+async function readStorageValue(key: string) {
   const webStorage = getWebStorage();
   if (webStorage) {
-    return webStorage.getItem(MEMVO_ONBOARDING_SEEN_STORAGE_KEY) === 'true';
+    return webStorage.getItem(key);
   }
 
-  const value = await AsyncStorage.getItem(MEMVO_ONBOARDING_SEEN_STORAGE_KEY);
-  return value === 'true';
+  return AsyncStorage.getItem(key);
+}
+
+async function writeStorageValue(key: string, value: string) {
+  const webStorage = getWebStorage();
+  if (webStorage) {
+    webStorage.setItem(key, value);
+    return;
+  }
+
+  await AsyncStorage.setItem(key, value);
+}
+
+async function removeStorageValue(key: string) {
+  const webStorage = getWebStorage();
+  if (webStorage) {
+    webStorage.removeItem(key);
+    return;
+  }
+
+  await AsyncStorage.removeItem(key);
+}
+
+export async function readHasSeenOnboarding() {
+  return (await readStorageValue(MEMVO_ONBOARDING_SEEN_STORAGE_KEY)) === 'true';
 }
 
 export async function writeHasSeenOnboarding(value: boolean) {
-  const serialized = value ? 'true' : 'false';
-  const webStorage = getWebStorage();
-
-  if (webStorage) {
-    webStorage.setItem(MEMVO_ONBOARDING_SEEN_STORAGE_KEY, serialized);
-    return;
-  }
-
-  await AsyncStorage.setItem(MEMVO_ONBOARDING_SEEN_STORAGE_KEY, serialized);
+  await writeStorageValue(MEMVO_ONBOARDING_SEEN_STORAGE_KEY, value ? 'true' : 'false');
 }
 
 export async function resetHasSeenOnboarding() {
-  const webStorage = getWebStorage();
+  await removeStorageValue(MEMVO_ONBOARDING_SEEN_STORAGE_KEY);
+}
 
-  if (webStorage) {
-    webStorage.removeItem(MEMVO_ONBOARDING_SEEN_STORAGE_KEY);
-    return;
+export async function readPendingSignupTransition() {
+  return (await readStorageValue(MEMVO_PENDING_SIGNUP_STORAGE_KEY)) === 'true';
+}
+
+export async function writePendingSignupTransition() {
+  await writeStorageValue(MEMVO_PENDING_SIGNUP_STORAGE_KEY, 'true');
+}
+
+export async function clearPendingSignupTransition() {
+  await removeStorageValue(MEMVO_PENDING_SIGNUP_STORAGE_KEY);
+}
+
+export async function recoverPendingSignupTransition() {
+  const [hasSeenOnboarding, hasPendingSignupTransition] = await Promise.all([
+    readHasSeenOnboarding(),
+    readPendingSignupTransition(),
+  ]);
+
+  if (!hasPendingSignupTransition) {
+    return {
+      shouldResumeSignup: false,
+      clearedCorruptedState: false,
+    };
   }
 
-  await AsyncStorage.removeItem(MEMVO_ONBOARDING_SEEN_STORAGE_KEY);
+  if (hasSeenOnboarding) {
+    return {
+      shouldResumeSignup: true,
+      clearedCorruptedState: false,
+    };
+  }
+
+  await clearPendingSignupTransition();
+
+  return {
+    shouldResumeSignup: false,
+    clearedCorruptedState: true,
+  };
 }

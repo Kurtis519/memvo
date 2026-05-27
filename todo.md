@@ -166,3 +166,8 @@
 - [x] Task 11 Part 7: run the final Android development build and deliver APK link, QR code, uninstall guidance, and installation steps
 - [x] Review and validate Task 11 Part 5 Pro PDF export after the implementation is complete
 - [x] Verify that the preview build profile includes the required EXPO_PUBLIC Supabase variables and add any missing Expo project secrets before rebuilding the Android preview APK
+- [x] Inspect the current onboarding Get started handler and verify the exact signup route name used in Memvo's navigation stack
+- [x] Add guarded onboarding navigation with route logging and try/catch error handling for the Get started action
+- [x] Isolate signup-screen load failures with a screen-level error boundary or equivalent safe fallback
+- [x] Add an app-level error boundary and startup-safe recovery logging so crashes render a readable fallback instead of a black screen
+- [x] Build and verify a fresh Android preview APK after the onboarding crash fix

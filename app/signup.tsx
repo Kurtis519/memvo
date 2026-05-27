@@ -13,8 +13,10 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 
+import { MemvoErrorBoundary } from '@/components/error-boundary';
 import { ScreenContainer } from '@/components/screen-container';
 import { useGoogleSignIn } from '@/lib/google-auth';
+import { clearPendingSignupTransition } from '@/lib/memvo-auth-flow';
 import { processPendingReferralForCurrentUser, readPendingReferralCode } from '@/lib/memvo-referrals';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 
@@ -27,7 +29,73 @@ const INPUT_BORDER = '#E0E0E0';
 const WHITE = '#FFFFFF';
 const TEAL = '#0F6E56';
 
-export default function SignupScreen() {
+function GoogleSignupButton({
+  onSignedIn,
+  onError,
+}: {
+  onSignedIn: () => Promise<void>;
+  onError: (message: string | null) => void;
+}) {
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
+  const { startGoogleSignIn, configStatus, isGoogleReady } = useGoogleSignIn();
+
+  const googleButtonDisabled = isGoogleSubmitting || (Platform.OS !== 'web' && !isGoogleReady);
+  const googleUnavailableMessage = useMemo(() => {
+    if (Platform.OS === 'web' || configStatus.hasNativeClientIds) {
+      return null;
+    }
+
+    return `Google Sign-In needs ${configStatus.missingNativeClientIds.join(', ')} in this build.`;
+  }, [configStatus.hasNativeClientIds, configStatus.missingNativeClientIds]);
+
+  const handleGoogleAuth = async () => {
+    console.log('Memvo signup Google auth status', {
+      platform: Platform.OS,
+      hasNativeClientIds: configStatus.hasNativeClientIds,
+      missingNativeClientIds: configStatus.missingNativeClientIds,
+      isGoogleReady,
+    });
+
+    setIsGoogleSubmitting(true);
+    onError(null);
+
+    try {
+      const result = await startGoogleSignIn();
+      if (!result.cancelled && !result.redirected) {
+        await onSignedIn();
+      }
+    } catch (error) {
+      console.error('Memvo signup Google auth error:', error);
+      onError(error instanceof Error ? error.message : 'Google Sign-In failed. Please try again.');
+    } finally {
+      setIsGoogleSubmitting(false);
+    }
+  };
+
+  return (
+    <>
+      <TouchableOpacity
+        accessibilityRole="button"
+        activeOpacity={0.85}
+        onPress={() => {
+          void handleGoogleAuth();
+        }}
+        disabled={googleButtonDisabled}
+        style={[styles.googleButton, googleButtonDisabled && styles.googleButtonDisabled]}
+      >
+        {isGoogleSubmitting ? (
+          <ActivityIndicator color={HEADING} />
+        ) : (
+          <Text style={styles.googleButtonText}>Continue with Google</Text>
+        )}
+      </TouchableOpacity>
+
+      {googleUnavailableMessage ? <Text style={styles.helperText}>{googleUnavailableMessage}</Text> : null}
+    </>
+  );
+}
+
+function SignupScreenContent() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -37,8 +105,12 @@ export default function SignupScreen() {
   const [checkEmailAddress, setCheckEmailAddress] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
-  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
-  const { startGoogleSignIn, configStatus, isGoogleReady } = useGoogleSignIn();
+
+  useEffect(() => {
+    void clearPendingSignupTransition().catch((error) => {
+      console.error('Memvo could not clear the pending signup transition on signup mount:', error);
+    });
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -65,15 +137,6 @@ export default function SignupScreen() {
   const canSubmit = useMemo(() => {
     return trimmedName.length > 0 && EMAIL_REGEX.test(trimmedEmail) && password.trim().length >= 6;
   }, [password, trimmedEmail, trimmedName]);
-
-  const googleButtonDisabled = isGoogleSubmitting || (Platform.OS !== 'web' && !isGoogleReady);
-  const googleUnavailableMessage = useMemo(() => {
-    if (Platform.OS === 'web' || configStatus.hasNativeClientIds) {
-      return null;
-    }
-
-    return `Google Sign-In needs ${configStatus.missingNativeClientIds.join(', ')} in this build.`;
-  }, [configStatus.hasNativeClientIds, configStatus.missingNativeClientIds]);
 
   const finishSignedInFlow = async () => {
     const referralResult = await processPendingReferralForCurrentUser();
@@ -125,23 +188,6 @@ export default function SignupScreen() {
       setAuthError(error instanceof Error ? error.message : 'Sign-up failed. Please try again.');
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleGoogleAuth = async () => {
-    setIsGoogleSubmitting(true);
-    setAuthError(null);
-    setCheckEmailAddress(null);
-
-    try {
-      const result = await startGoogleSignIn();
-      if (!result.cancelled && !result.redirected) {
-        await finishSignedInFlow();
-      }
-    } catch (error) {
-      setAuthError(error instanceof Error ? error.message : 'Google Sign-In failed. Please try again.');
-    } finally {
-      setIsGoogleSubmitting(false);
     }
   };
 
@@ -317,23 +363,20 @@ export default function SignupScreen() {
                     <View style={styles.dividerLine} />
                   </View>
 
-                  <TouchableOpacity
-                    accessibilityRole="button"
-                    activeOpacity={0.85}
-                    onPress={() => {
-                      void handleGoogleAuth();
-                    }}
-                    disabled={googleButtonDisabled}
-                    style={[styles.googleButton, googleButtonDisabled && styles.googleButtonDisabled]}
+                  <MemvoErrorBoundary
+                    scope="Signup Google section"
+                    variant="inline"
+                    title="Google Sign-In is temporarily unavailable"
+                    body="Email sign up still works in this build while we log the native Google auth error."
                   >
-                    {isGoogleSubmitting ? (
-                      <ActivityIndicator color={HEADING} />
-                    ) : (
-                      <Text style={styles.googleButtonText}>Continue with Google</Text>
-                    )}
-                  </TouchableOpacity>
-
-                  {googleUnavailableMessage ? <Text style={styles.helperText}>{googleUnavailableMessage}</Text> : null}
+                    <GoogleSignupButton
+                      onSignedIn={finishSignedInFlow}
+                      onError={(message) => {
+                        setAuthError(message);
+                        setCheckEmailAddress(null);
+                      }}
+                    />
+                  </MemvoErrorBoundary>
                 </View>
               )}
             </View>
@@ -353,6 +396,18 @@ export default function SignupScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
     </ScreenContainer>
+  );
+}
+
+export default function SignupScreen() {
+  return (
+    <MemvoErrorBoundary
+      scope="Signup screen"
+      title="Memvo could not open sign up"
+      body="We caught a screen error instead of letting the app crash. Please reopen the app and try again."
+    >
+      <SignupScreenContent />
+    </MemvoErrorBoundary>
   );
 }
 

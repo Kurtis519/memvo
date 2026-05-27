@@ -1,8 +1,8 @@
-import { router } from 'expo-router';
+import { router, useRootNavigationState } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, SafeAreaView, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, SafeAreaView, Text, View } from 'react-native';
 
-import { writeHasSeenOnboarding } from '@/lib/memvo-auth-flow';
+import { clearPendingSignupTransition, writeHasSeenOnboarding, writePendingSignupTransition } from '@/lib/memvo-auth-flow';
 
 type SlideIndex = 0 | 1 | 2;
 
@@ -61,7 +61,10 @@ function PricingCard({
 }
 
 export default function OnboardingScreen() {
+  const rootNavigationState = useRootNavigationState();
   const [currentSlide, setCurrentSlide] = useState<SlideIndex>(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [navigationError, setNavigationError] = useState<string | null>(null);
 
   const slideContent = useMemo(() => {
     if (currentSlide === 0) {
@@ -167,16 +170,47 @@ export default function OnboardingScreen() {
     setCurrentSlide((previous) => (previous === 2 ? 1 : 0));
   };
 
+  const availableRoutes = useMemo(
+    () => [
+      ...new Set([
+        ...(rootNavigationState?.routeNames ?? []),
+        ...(rootNavigationState?.routes?.map((route) => route.name) ?? []),
+      ]),
+    ],
+    [rootNavigationState],
+  );
+
   const handleNext = async () => {
     if (currentSlide < 2) {
       setCurrentSlide((previous) => (previous === 0 ? 1 : 2));
       return;
     }
 
+    const navigationSnapshot = {
+      key: rootNavigationState?.key ?? null,
+      index: rootNavigationState?.index ?? null,
+      routeNames: availableRoutes,
+      currentRoutes: rootNavigationState?.routes?.map((route) => route.name) ?? [],
+      target: '/signup',
+    };
+
+    console.log('Memvo onboarding navigation state', navigationSnapshot);
+    setNavigationError(null);
+    setIsSubmitting(true);
+
     try {
+      await writePendingSignupTransition();
       await writeHasSeenOnboarding(true);
-    } finally {
+      console.log('Memvo onboarding routes available for Get started', availableRoutes);
       router.replace('/signup' as Parameters<typeof router.replace>[0]);
+    } catch (error) {
+      console.error('Navigation error:', error);
+      console.error('Memvo onboarding route snapshot:', navigationSnapshot);
+      await clearPendingSignupTransition().catch((clearError) => {
+        console.error('Memvo could not clear the pending signup transition after a navigation failure:', clearError);
+      });
+      setNavigationError('We could not open the sign up screen just yet. Please tap Get started again.');
+      setIsSubmitting(false);
     }
   };
 
@@ -209,6 +243,21 @@ export default function OnboardingScreen() {
         </View>
 
         <View style={{ marginTop: 20, backgroundColor: '#FFFFFF' }}>
+          {navigationError ? (
+            <View
+              style={{
+                marginBottom: 16,
+                borderRadius: 18,
+                borderWidth: 1,
+                borderColor: '#F3CFCF',
+                backgroundColor: '#FFF7F7',
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+              }}
+            >
+              <Text style={{ color: '#8A1F1F', fontSize: 13, fontWeight: '600', lineHeight: 20 }}>{navigationError}</Text>
+            </View>
+          ) : null}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               {[0, 1, 2].map((index) => (
@@ -252,11 +301,19 @@ export default function OnboardingScreen() {
                 borderRadius: 999,
                 paddingHorizontal: currentSlide === 2 ? 22 : 28,
                 paddingVertical: 16,
+                minWidth: currentSlide === 2 ? 132 : 108,
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: isSubmitting ? 0.78 : 1,
               }}
             >
-              <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '600' }}>
-                {currentSlide === 2 ? 'Get started' : 'Next'}
-              </Text>
+              {isSubmitting ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '600' }}>
+                  {currentSlide === 2 ? 'Get started' : 'Next'}
+                </Text>
+              )}
             </Pressable>
           </View>
         </View>

@@ -3,26 +3,34 @@ import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 
 import { useAuth } from '@/hooks/use-auth';
-import { readHasSeenOnboarding } from '@/lib/memvo-auth-flow';
+import { readHasSeenOnboarding, recoverPendingSignupTransition } from '@/lib/memvo-auth-flow';
 import { getEntryTarget } from '@/lib/memvo-auth-routing';
 
 export default function IndexRoute() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
+  const [shouldResumeSignup, setShouldResumeSignup] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
 
-    readHasSeenOnboarding()
-      .then((value) => {
+    Promise.all([readHasSeenOnboarding(), recoverPendingSignupTransition()])
+      .then(([value, recovery]) => {
         if (isMounted) {
           setHasSeenOnboarding(value);
+          setShouldResumeSignup(recovery.shouldResumeSignup);
+
+          if (recovery.clearedCorruptedState) {
+            console.warn('Memvo cleared an interrupted onboarding transition before startup routing.');
+          }
         }
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error('Memvo startup state recovery failed:', error);
         if (isMounted) {
           setHasSeenOnboarding(false);
+          setShouldResumeSignup(false);
         }
       });
 
@@ -32,22 +40,35 @@ export default function IndexRoute() {
   }, []);
 
   useEffect(() => {
-    const target = getEntryTarget({
-      isAuthenticated,
-      hasSeenOnboarding,
-    });
+    const target = shouldResumeSignup && !isAuthenticated
+      ? '/signup'
+      : getEntryTarget({
+          isAuthenticated,
+          hasSeenOnboarding,
+        });
 
     if (!target) {
       return;
     }
 
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      window.location.replace(target);
-      return;
-    }
+    console.log('Memvo startup navigation target', {
+      isAuthenticated,
+      hasSeenOnboarding,
+      shouldResumeSignup,
+      target,
+    });
 
-    router.replace(target as Parameters<typeof router.replace>[0]);
-  }, [hasSeenOnboarding, isAuthenticated, router]);
+    try {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.location.replace(target);
+        return;
+      }
+
+      router.replace(target as Parameters<typeof router.replace>[0]);
+    } catch (error) {
+      console.error('Memvo startup navigation error:', error);
+    }
+  }, [hasSeenOnboarding, isAuthenticated, router, shouldResumeSignup]);
 
   return (
     <View style={styles.loadingOverlay}>
