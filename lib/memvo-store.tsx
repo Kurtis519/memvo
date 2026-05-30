@@ -64,6 +64,7 @@ import {
   shouldShowRetryNotification,
 } from '@/lib/memvo-transcription';
 import { getRevenueCatCustomerInfo, hasRevenueCatProAccess, syncRevenueCatUser } from '@/lib/revenuecat';
+import { resolveMemvoUserProfile } from '@/lib/memvo-profile-resolution';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 
 type RecordingSaveInput = {
@@ -369,50 +370,33 @@ export function MemvoProvider({ children }: PropsWithChildren) {
     const revenueCatCustomerInfo = await getRevenueCatCustomerInfo(authUser.id).catch(() => null);
     const hasRevenueCatPro = hasRevenueCatProAccess(revenueCatCustomerInfo);
 
-    const { data } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('id', authUser.id)
-      .single();
+    const [userProfilesResult, usersResult] = await Promise.all([
+      supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', authUser.id)
+        .maybeSingle(),
+      supabase
+        .from('users')
+        .select('*')
+        .eq('id', authUser.id)
+        .maybeSingle(),
+    ]);
 
-    if (!data) {
-      setUserProfile({
-        id: authUser.id,
-        email: authUser.email ?? null,
-        fullName: (authUser.user_metadata?.full_name as string | undefined) ?? (authUser.user_metadata?.name as string | undefined) ?? null,
-        avatarUrl: (authUser.user_metadata?.avatar_url as string | undefined) ?? null,
-        plan: hasRevenueCatPro ? 'pro' : 'free',
-        isAdmin: false,
-        manualPro: false,
-        referralCode: null,
-        referredByCode: null,
-        bonusMinutes: 0,
-        minutesUsedThisMonth: 0,
-        aiChatQueriesToday: 0,
-        aiChatResetDate: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-      return;
+    if (userProfilesResult.error && userProfilesResult.error.code !== 'PGRST116') {
+      console.error('Failed to load user_profiles row for Memvo profile refresh', userProfilesResult.error);
     }
 
-    setUserProfile({
-      id: data.id,
-      email: data.email ?? authUser.email ?? null,
-      fullName: data.full_name ?? authUser.user_metadata?.full_name ?? authUser.user_metadata?.name ?? null,
-      avatarUrl: data.avatar_url ?? authUser.user_metadata?.avatar_url ?? null,
-      plan: normalizePlan(hasRevenueCatPro ? 'pro' : data.plan, Boolean(data.is_admin)),
-      isAdmin: Boolean(data.is_admin),
-      manualPro: Boolean(data.manual_pro),
-      referralCode: data.referral_code ?? null,
-      referredByCode: data.referred_by_code ?? null,
-      bonusMinutes: Number(data.bonus_minutes ?? 0),
-      minutesUsedThisMonth: Number(data.minutes_used_this_month ?? 0),
-      aiChatQueriesToday: Number(data.ai_chat_queries_today ?? 0),
-      aiChatResetDate: typeof data.ai_chat_reset_date === 'string' ? data.ai_chat_reset_date : null,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
-    });
+    if (usersResult.error && usersResult.error.code !== 'PGRST116') {
+      console.error('Failed to load users row for Memvo profile refresh', usersResult.error);
+    }
+
+    setUserProfile(resolveMemvoUserProfile({
+      authUser,
+      hasRevenueCatPro,
+      userProfileRow: userProfilesResult.data ?? null,
+      usersRow: usersResult.data ?? null,
+    }));
   }, []);
 
   useEffect(() => {

@@ -182,3 +182,7 @@
 - [x] Replace the hardcoded Google fallback client ID in `lib/google-auth.ts` with the user-provided public client ID
 - [x] Confirm the hardcoded public Supabase anon key in `lib/supabase.ts` matches the user-provided value
 - [x] Revalidate auth configuration and produce a fresh Android preview build after updating the fallback values
+- [x] Trace where Settings reads `is_admin` and determine whether it uses `users`, `user_profiles`, or cached auth state
+- [x] Fix admin-role resolution so `is_admin = true` in either `users` or `user_profiles` enables the Admin panel in Settings
+- [x] Refresh admin/profile state on login so a new sign-in picks up updated admin flags without stale caching
+- [x] Validate the admin-panel visibility fix with targeted tests and project health checks
