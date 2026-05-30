@@ -68,9 +68,9 @@ function readGoogleEnv(): GooglePublicEnv {
   const extra = resolveRuntimeExtra();
 
   return {
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? extra.googleWebClientId ?? '',
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? extra.googleIosClientId ?? '',
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? extra.googleAndroidClientId ?? '',
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || extra.googleWebClientId || '',
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || extra.googleIosClientId || '',
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || extra.googleAndroidClientId || '',
   };
 }
 
@@ -200,14 +200,14 @@ export function useGoogleSignIn() {
     if (result.type !== 'success') {
       const providerError =
         ('params' in result && result.params
-          ? (result.params.error_description ?? result.params.error)
-          : undefined) ?? 'Google Sign-In failed. Please try again.';
+          ? (result.params.error_description || result.params.error)
+          : undefined) || 'Google Sign-In failed. Please try again.';
       throw new Error(providerError);
     }
 
     const idToken =
       ('params' in result && result.params ? result.params.id_token : undefined)
-      ?? ('authentication' in result && result.authentication ? result.authentication.idToken : undefined);
+      || ('authentication' in result && result.authentication ? result.authentication.idToken : undefined);
 
     if (!idToken) {
       throw new Error('Google did not return an ID token.');

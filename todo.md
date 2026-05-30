@@ -171,3 +171,8 @@
 - [x] Isolate signup-screen load failures with a screen-level error boundary or equivalent safe fallback
 - [x] Add an app-level error boundary and startup-safe recovery logging so crashes render a readable fallback instead of a black screen
 - [x] Build and verify a fresh Android preview APK after the onboarding crash fix
+- [x] Run a fresh Android preview EAS build after Supabase Google Sign-In credentials were confirmed in Supabase
+- [x] Verify the completed preview APK artifact and return the direct download link for the latest build
+- [x] Replace nullish-coalescing environment resolution with empty-string-safe fallback logic in `lib/supabase.ts`
+- [x] Replace nullish-coalescing process.env resolution with empty-string-safe fallback logic in `lib/google-auth.ts`
+- [x] Rebuild the Android preview APK after the Supabase and Google auth environment-resolution fix and return the verified direct download link

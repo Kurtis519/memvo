@@ -42,14 +42,14 @@ const extra = resolveRuntimeExtra();
 
 const supabaseUrl =
   process.env.EXPO_PUBLIC_SUPABASE_URL
-  ?? process.env.SUPABASE_URL
-  ?? extra.supabaseUrl
-  ?? '';
+  || process.env.SUPABASE_URL
+  || extra.supabaseUrl
+  || '';
 const supabaseAnonKey =
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
-  ?? process.env.SUPABASE_ANON_KEY
-  ?? extra.supabaseAnonKey
-  ?? '';
+  || process.env.SUPABASE_ANON_KEY
+  || extra.supabaseAnonKey
+  || '';
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
