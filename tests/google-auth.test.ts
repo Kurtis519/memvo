@@ -14,7 +14,7 @@ afterEach(() => {
 });
 
 describe('google auth helper config', () => {
-  it('reports missing native client IDs and derives the Android redirect URI from Expo config', async () => {
+  it('uses the hardcoded Android client ID fallback and still reports a missing iOS native client ID when env values are absent', async () => {
     delete process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
     delete process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
     delete process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
@@ -52,9 +52,9 @@ describe('google auth helper config', () => {
     const status = getGoogleAuthConfigStatus();
 
     expect(status.nativeRedirectUri).toBe('com.memvo.mobile:/oauthredirect');
+    expect(status.androidClientId).toBe('283329134832-fa10lpd3hdsk10svodpteovheu4tlhu2.apps.googleusercontent.com');
     expect(status.missingNativeClientIds).toEqual([
       'EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID',
-      'EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID',
     ]);
     expect(status.hasNativeClientIds).toBe(false);
     expect(status.missingPublicClientIds).toContain('EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID');

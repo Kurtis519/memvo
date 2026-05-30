@@ -64,13 +64,18 @@ function resolveRuntimeExtra(): GoogleRuntimeExtra {
   };
 }
 
+const GOOGLE_ANDROID_CLIENT_ID_FALLBACK = '283329134832-fa10lpd3hdsk10svodpteovheu4tlhu2.apps.googleusercontent.com';
+
 function readGoogleEnv(): GooglePublicEnv {
   const extra = resolveRuntimeExtra();
 
   return {
     webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || extra.googleWebClientId || '',
     iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || extra.googleIosClientId || '',
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || extra.googleAndroidClientId || '',
+    androidClientId:
+      process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID
+      || extra.googleAndroidClientId
+      || GOOGLE_ANDROID_CLIENT_ID_FALLBACK,
   };
 }
 

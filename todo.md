@@ -176,3 +176,9 @@
 - [x] Replace nullish-coalescing environment resolution with empty-string-safe fallback logic in `lib/supabase.ts`
 - [x] Replace nullish-coalescing process.env resolution with empty-string-safe fallback logic in `lib/google-auth.ts`
 - [x] Rebuild the Android preview APK after the Supabase and Google auth environment-resolution fix and return the verified direct download link
+- [x] Hardcode public Supabase fallback constants in `lib/supabase.ts` so preview builds work even when EAS preview env vars resolve empty
+- [x] Hardcode the public Google Android client ID fallback in `lib/google-auth.ts` for preview-build reliability
+- [x] Rebuild the Android preview APK after the hardcoded public fallback fix and return the verified direct download link
+- [x] Replace the hardcoded Google fallback client ID in `lib/google-auth.ts` with the user-provided public client ID
+- [x] Confirm the hardcoded public Supabase anon key in `lib/supabase.ts` matches the user-provided value
+- [x] Revalidate auth configuration and produce a fresh Android preview build after updating the fallback values

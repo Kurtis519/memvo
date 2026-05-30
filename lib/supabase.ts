@@ -39,17 +39,17 @@ function resolveRuntimeExtra(): SupabaseRuntimeExtra {
 }
 
 const extra = resolveRuntimeExtra();
+const SUPABASE_URL_FALLBACK = 'https://iblnwhxtgyrrlvaehasa.supabase.co';
+const SUPABASE_ANON_KEY_FALLBACK = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlibG53aHh0Z3lycmx2YWVoYXNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5NTI3NjUsImV4cCI6MjA5MTUyODc2NX0.Nfsad9NK0vqvbR3cP6qTx-TZmUaEIA9KelU9IHSnJkQ';
 
 const supabaseUrl =
   process.env.EXPO_PUBLIC_SUPABASE_URL
-  || process.env.SUPABASE_URL
   || extra.supabaseUrl
-  || '';
+  || SUPABASE_URL_FALLBACK;
 const supabaseAnonKey =
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
-  || process.env.SUPABASE_ANON_KEY
   || extra.supabaseAnonKey
-  || '';
+  || SUPABASE_ANON_KEY_FALLBACK;
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
