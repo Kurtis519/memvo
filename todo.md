@@ -171,6 +171,7 @@
 - [x] Isolate signup-screen load failures with a screen-level error boundary or equivalent safe fallback
 - [x] Add an app-level error boundary and startup-safe recovery logging so crashes render a readable fallback instead of a black screen
 - [x] Build and verify a fresh Android preview APK after the onboarding crash fix
+<<<<<<< Updated upstream
 - [x] Run a fresh Android preview EAS build after Supabase Google Sign-In credentials were confirmed in Supabase
 - [x] Verify the completed preview APK artifact and return the direct download link for the latest build
 - [x] Replace nullish-coalescing environment resolution with empty-string-safe fallback logic in `lib/supabase.ts`
@@ -186,3 +187,6 @@
 - [x] Fix admin-role resolution so `is_admin = true` in either `users` or `user_profiles` enables the Admin panel in Settings
 - [x] Refresh admin/profile state on login so a new sign-in picks up updated admin flags without stale caching
 - [x] Validate the admin-panel visibility fix with targeted tests and project health checks
+=======
+- [x] Resume the Android preview build for the validated authenticated-entry routing fix now that Expo build capacity is available
+>>>>>>> Stashed changes
