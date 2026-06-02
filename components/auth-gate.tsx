@@ -9,6 +9,10 @@ import { resolveAuthGateTarget } from '@/lib/memvo-auth-routing';
 
 function readInitialOnboardingState() {
   try {
+<<<<<<< Updated upstream
+=======
+    // On Android, window exists but localStorage does not — must check both
+>>>>>>> Stashed changes
     if (
       typeof window === 'undefined' ||
       typeof window.localStorage === 'undefined' ||
@@ -28,6 +32,10 @@ function readInitialOnboardingState() {
     return null;
   }
 
+<<<<<<< Updated upstream
+=======
+  // Return null not false — null means unknown, false means definitely not seen
+>>>>>>> Stashed changes
   return null;
 }
 
@@ -36,7 +44,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const rootNavigationState = useRootNavigationState();
   const { isAuthenticated, loading } = useAuth();
-  const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(() => readInitialOnboardingState());
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(
+    () => readInitialOnboardingState(),
+  );
   const splashHiddenRef = useRef(false);
 
   useEffect(() => {
@@ -50,7 +60,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       })
       .catch(() => {
         if (isMounted) {
-          setHasSeenOnboarding(false);
+          // Use null not false — unknown state, let index.tsx decide
+          setHasSeenOnboarding(null);
         }
       });
 
@@ -92,7 +103,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     }
   }, [pathname, rootNavigationState?.key, routeDecision, router]);
 
-  const shouldShowLoadingShell = pathname !== '/' && routeDecision.target !== null && routeDecision.target !== pathname;
+  const shouldShowLoadingShell =
+    routeDecision.target !== null && routeDecision.target !== pathname;
 
   return (
     <>
@@ -103,7 +115,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
             <Text style={styles.loadingEyebrow}>Memvo</Text>
             <Text style={styles.loadingTitle}>Loading your workspace</Text>
             <Text style={styles.loadingBody}>
-              We are checking onboarding and account state so you land on the right screen without a flash.
+              We are checking onboarding and account state so you land on the right screen without a
+              flash.
             </Text>
           </View>
         </View>

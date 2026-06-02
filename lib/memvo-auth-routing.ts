@@ -17,14 +17,18 @@ function isPublicUtilityRoute(pathname: string) {
 }
 
 function isSignedOutRoute(pathname: string) {
-  return matchesRoute(pathname, '/onboarding') || matchesRoute(pathname, '/signup') || matchesRoute(pathname, '/login');
+  return (
+    matchesRoute(pathname, '/onboarding') ||
+    matchesRoute(pathname, '/signup') ||
+    matchesRoute(pathname, '/login')
+  );
 }
 
 export function getEntryTarget({ isAuthenticated, hasSeenOnboarding }: EntryRouteContext) {
   if (hasSeenOnboarding === null) {
     return null;
   }
-
+  // Always send authenticated users to tabs — never to '/' which causes routing loops
   return isAuthenticated ? '/(tabs)' : hasSeenOnboarding ? '/login' : '/onboarding';
 }
 
@@ -39,30 +43,41 @@ export function resolveAuthGateTarget({
   loading: boolean;
   hasSeenOnboarding: boolean | null;
 }): AuthRouteDecision {
+  // Still loading auth or onboarding state — wait
   if (loading || hasSeenOnboarding === null) {
     return { ready: false, target: null };
   }
 
+  // Authenticated — send to home feed if on a signed-out screen or root
+  // NEVER redirect to '/' — that causes a routing loop back to onboarding
   if (isAuthenticated) {
+    const needsRedirect = isSignedOutRoute(pathname) || pathname === '/';
     return {
       ready: true,
-      target: isSignedOutRoute(pathname) ? '/' : null,
+      target: needsRedirect ? '/(tabs)' : null,
     };
   }
 
+  // Allow public utility routes without redirect
   if (isPublicUtilityRoute(pathname)) {
     return { ready: true, target: null };
   }
 
+  // Not authenticated, never seen onboarding — go to onboarding
   if (!hasSeenOnboarding) {
     return {
       ready: true,
-      target: matchesRoute(pathname, '/onboarding') || matchesRoute(pathname, '/signup') ? null : '/onboarding',
+      target:
+        matchesRoute(pathname, '/onboarding') || matchesRoute(pathname, '/signup')
+          ? null
+          : '/onboarding',
     };
   }
 
+  // Not authenticated, has seen onboarding — go to login
   return {
     ready: true,
-    target: matchesRoute(pathname, '/login') || matchesRoute(pathname, '/signup') ? null : '/login',
+    target:
+      matchesRoute(pathname, '/login') || matchesRoute(pathname, '/signup') ? null : '/login',
   };
 }

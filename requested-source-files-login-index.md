@@ -1,3 +1,6 @@
+`app/login.tsx`
+
+```tsx
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -38,16 +41,14 @@ export default function LoginScreen() {
   const { startGoogleSignIn, configStatus, isGoogleReady } = useGoogleSignIn();
 
   const trimmedEmail = email.trim().toLowerCase();
-  const canSubmit = useMemo(
-    () => EMAIL_REGEX.test(trimmedEmail) && password.trim().length >= 6,
-    [password, trimmedEmail],
-  );
+  const canSubmit = useMemo(() => EMAIL_REGEX.test(trimmedEmail) && password.trim().length >= 6, [password, trimmedEmail]);
 
   const googleButtonDisabled = isGoogleSubmitting || (Platform.OS !== 'web' && !isGoogleReady);
   const googleUnavailableMessage = useMemo(() => {
     if (Platform.OS === 'web' || configStatus.hasNativeClientIds) {
       return null;
     }
+
     return `Google Sign-In needs ${configStatus.missingNativeClientIds.join(', ')} in this build.`;
   }, [configStatus.hasNativeClientIds, configStatus.missingNativeClientIds]);
 
@@ -55,9 +56,7 @@ export default function LoginScreen() {
     console.log('Memvo login isSupabaseConfigured:', isSupabaseConfigured);
 
     if (!isSupabaseConfigured) {
-      setAuthError(
-        'Supabase is not configured correctly in this build. Reload after the public auth settings finish syncing.',
-      );
+      setAuthError('Supabase is not configured correctly in this build. Reload after the public auth settings finish syncing.');
       return;
     }
 
@@ -83,18 +82,8 @@ export default function LoginScreen() {
       if (!data.session) {
         throw new Error('Sign-in completed without a session. Please try again.');
       }
-<<<<<<< Updated upstream
-=======
-
-      // Explicitly navigate to home feed after successful sign-in
-      // The AuthGate will also handle this via auth state change,
-      // but we navigate directly here to avoid any timing issues on Android
-      router.replace('/(tabs)' as Parameters<typeof router.replace>[0]);
->>>>>>> Stashed changes
     } catch (error) {
-      setAuthError(
-        error instanceof Error ? error.message : 'Sign-in failed. Please try again.',
-      );
+      setAuthError(error instanceof Error ? error.message : 'Sign-in failed. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -111,9 +100,7 @@ export default function LoginScreen() {
         router.replace('/(tabs)' as Parameters<typeof router.replace>[0]);
       }
     } catch (error) {
-      setAuthError(
-        error instanceof Error ? error.message : 'Google Sign-In failed. Please try again.',
-      );
+      setAuthError(error instanceof Error ? error.message : 'Google Sign-In failed. Please try again.');
     } finally {
       setIsGoogleSubmitting(false);
     }
@@ -121,16 +108,12 @@ export default function LoginScreen() {
 
   const handleForgotPassword = async () => {
     if (!isSupabaseConfigured) {
-      setAuthError(
-        'Supabase is not configured correctly in this build. Reload after the public auth settings finish syncing.',
-      );
+      setAuthError('Supabase is not configured correctly in this build. Reload after the public auth settings finish syncing.');
       return;
     }
 
     if (!EMAIL_REGEX.test(trimmedEmail)) {
-      setAuthError(
-        'Enter your email address first so Memvo knows where to send the reset link.',
-      );
+      setAuthError('Enter your email address first so Memvo knows where to send the reset link.');
       return;
     }
 
@@ -143,11 +126,10 @@ export default function LoginScreen() {
       if (error) {
         throw error;
       }
+
       setResetMessage(`Password reset email sent to ${trimmedEmail}.`);
     } catch (error) {
-      setAuthError(
-        error instanceof Error ? error.message : 'Unable to send the reset email right now.',
-      );
+      setAuthError(error instanceof Error ? error.message : 'Unable to send the reset email right now.');
     } finally {
       setIsResetting(false);
     }
@@ -177,9 +159,7 @@ export default function LoginScreen() {
               </View>
               <View style={styles.heroTextBlock}>
                 <Text style={styles.heading}>Welcome back</Text>
-                <Text style={styles.bodyText}>
-                  Pick up where you left off and go straight back to your voice notes.
-                </Text>
+                <Text style={styles.bodyText}>Pick up where you left off and go straight back to your voice notes.</Text>
               </View>
             </View>
 
@@ -215,9 +195,7 @@ export default function LoginScreen() {
                       style={styles.passwordInput}
                     />
                     <Pressable onPress={() => setShowPassword((current) => !current)}>
-                      <Text style={styles.inlineActionText}>
-                        {showPassword ? 'Hide' : 'Show'}
-                      </Text>
+                      <Text style={styles.inlineActionText}>{showPassword ? 'Hide' : 'Show'}</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -241,16 +219,9 @@ export default function LoginScreen() {
                     void handleSignIn();
                   }}
                   disabled={!canSubmit || isSubmitting}
-                  style={[
-                    styles.primaryButton,
-                    (!canSubmit || isSubmitting) && styles.primaryButtonDisabled,
-                  ]}
+                  style={[styles.primaryButton, (!canSubmit || isSubmitting) && styles.primaryButtonDisabled]}
                 >
-                  {isSubmitting ? (
-                    <ActivityIndicator color={WHITE} />
-                  ) : (
-                    <Text style={styles.primaryButtonText}>Sign in</Text>
-                  )}
+                  {isSubmitting ? <ActivityIndicator color={WHITE} /> : <Text style={styles.primaryButtonText}>Sign in</Text>}
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -261,9 +232,7 @@ export default function LoginScreen() {
                   }}
                   disabled={isResetting}
                 >
-                  <Text style={styles.linkText}>
-                    {isResetting ? 'Sending reset email…' : 'Forgot password?'}
-                  </Text>
+                  <Text style={styles.linkText}>{isResetting ? 'Sending reset email…' : 'Forgot password?'}</Text>
                 </TouchableOpacity>
 
                 <View style={styles.dividerRow}>
@@ -288,9 +257,7 @@ export default function LoginScreen() {
                   )}
                 </TouchableOpacity>
 
-                {googleUnavailableMessage ? (
-                  <Text style={styles.helperText}>{googleUnavailableMessage}</Text>
-                ) : null}
+                {googleUnavailableMessage ? <Text style={styles.helperText}>{googleUnavailableMessage}</Text> : null}
               </View>
             </View>
           </View>
@@ -299,13 +266,10 @@ export default function LoginScreen() {
             <TouchableOpacity
               accessibilityRole="button"
               activeOpacity={0.85}
-              onPress={() =>
-                router.replace('/signup' as Parameters<typeof router.replace>[0])
-              }
+              onPress={() => router.replace('/signup' as Parameters<typeof router.replace>[0])}
             >
               <Text style={styles.bottomPrompt}>
-                Don&apos;t have an account?{' '}
-                <Text style={styles.bottomPromptAccent}>Sign up</Text>
+                Don&apos;t have an account? <Text style={styles.bottomPromptAccent}>Sign up</Text>
               </Text>
             </TouchableOpacity>
           </View>
@@ -526,3 +490,135 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+```
+
+`app/index.tsx`
+
+```tsx
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Platform, StyleSheet, Text, View } from 'react-native';
+
+import { useAuth } from '@/hooks/use-auth';
+import { readHasSeenOnboarding, recoverPendingSignupTransition } from '@/lib/memvo-auth-flow';
+import { getEntryTarget } from '@/lib/memvo-auth-routing';
+
+export default function IndexRoute() {
+  const router = useRouter();
+  const { isAuthenticated } = useAuth();
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
+  const [shouldResumeSignup, setShouldResumeSignup] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    Promise.all([readHasSeenOnboarding(), recoverPendingSignupTransition()])
+      .then(([value, recovery]) => {
+        if (isMounted) {
+          setHasSeenOnboarding(value);
+          setShouldResumeSignup(recovery.shouldResumeSignup);
+
+          if (recovery.clearedCorruptedState) {
+            console.warn('Memvo cleared an interrupted onboarding transition before startup routing.');
+          }
+        }
+      })
+      .catch((error) => {
+        console.error('Memvo startup state recovery failed:', error);
+        if (isMounted) {
+          setHasSeenOnboarding(false);
+          setShouldResumeSignup(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const target = shouldResumeSignup && !isAuthenticated
+      ? '/signup'
+      : getEntryTarget({
+          isAuthenticated,
+          hasSeenOnboarding,
+        });
+
+    if (!target) {
+      return;
+    }
+
+    console.log('Memvo startup navigation target', {
+      isAuthenticated,
+      hasSeenOnboarding,
+      shouldResumeSignup,
+      target,
+    });
+
+    try {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.location.replace(target);
+        return;
+      }
+
+      router.replace(target as Parameters<typeof router.replace>[0]);
+    } catch (error) {
+      console.error('Memvo startup navigation error:', error);
+    }
+  }, [hasSeenOnboarding, isAuthenticated, router, shouldResumeSignup]);
+
+  return (
+    <View style={styles.loadingOverlay}>
+      <View style={styles.loadingCard}>
+        <Text style={styles.loadingEyebrow}>Memvo</Text>
+        <Text style={styles.loadingTitle}>Preparing your space</Text>
+        <Text style={styles.loadingBody}>
+          We are checking whether to continue onboarding, return you to sign in, or open your library.
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  loadingOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 32,
+  },
+  loadingCard: {
+    width: '100%',
+    maxWidth: 384,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 24,
+    paddingVertical: 32,
+  },
+  loadingEyebrow: {
+    color: '#0F6E56',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 3.3,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+  },
+  loadingTitle: {
+    marginTop: 16,
+    color: '#1A1A1A',
+    fontSize: 28,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  loadingBody: {
+    marginTop: 12,
+    color: '#555555',
+    fontSize: 14,
+    lineHeight: 24,
+    textAlign: 'center',
+  },
+});
+```

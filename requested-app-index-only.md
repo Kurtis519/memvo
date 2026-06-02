@@ -1,12 +1,15 @@
+```tsx
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
+
 import { useAuth } from '@/hooks/use-auth';
 import { readHasSeenOnboarding, recoverPendingSignupTransition } from '@/lib/memvo-auth-flow';
+import { getEntryTarget } from '@/lib/memvo-auth-routing';
 
 export default function IndexRoute() {
   const router = useRouter();
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
   const [shouldResumeSignup, setShouldResumeSignup] = useState(false);
 
@@ -18,6 +21,7 @@ export default function IndexRoute() {
         if (isMounted) {
           setHasSeenOnboarding(value);
           setShouldResumeSignup(recovery.shouldResumeSignup);
+
           if (recovery.clearedCorruptedState) {
             console.warn('Memvo cleared an interrupted onboarding transition before startup routing.');
           }
@@ -26,8 +30,7 @@ export default function IndexRoute() {
       .catch((error) => {
         console.error('Memvo startup state recovery failed:', error);
         if (isMounted) {
-          // Use null not false — null means "unknown", false means "definitely not seen"
-          setHasSeenOnboarding(null);
+          setHasSeenOnboarding(false);
           setShouldResumeSignup(false);
         }
       });
@@ -38,29 +41,21 @@ export default function IndexRoute() {
   }, []);
 
   useEffect(() => {
-    // Wait until auth loading is complete AND onboarding state is known
-    if (loading || hasSeenOnboarding === null) {
+    const target = shouldResumeSignup && !isAuthenticated
+      ? '/signup'
+      : getEntryTarget({
+          isAuthenticated,
+          hasSeenOnboarding,
+        });
+
+    if (!target) {
       return;
-    }
-
-    let target: string;
-
-    // ALWAYS send authenticated users to home feed — no exceptions
-    if (isAuthenticated) {
-      target = '/(tabs)';
-    } else if (shouldResumeSignup) {
-      target = '/signup';
-    } else if (hasSeenOnboarding) {
-      target = '/login';
-    } else {
-      target = '/onboarding';
     }
 
     console.log('Memvo startup navigation target', {
       isAuthenticated,
       hasSeenOnboarding,
       shouldResumeSignup,
-      loading,
       target,
     });
 
@@ -69,11 +64,12 @@ export default function IndexRoute() {
         window.location.replace(target);
         return;
       }
+
       router.replace(target as Parameters<typeof router.replace>[0]);
     } catch (error) {
       console.error('Memvo startup navigation error:', error);
     }
-  }, [hasSeenOnboarding, isAuthenticated, loading, router, shouldResumeSignup]);
+  }, [hasSeenOnboarding, isAuthenticated, router, shouldResumeSignup]);
 
   return (
     <View style={styles.loadingOverlay}>
@@ -129,3 +125,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+```
