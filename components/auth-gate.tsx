@@ -8,11 +8,15 @@ import { readHasSeenOnboarding } from '@/lib/memvo-auth-flow';
 import { resolveAuthGateTarget } from '@/lib/memvo-auth-routing';
 
 function readInitialOnboardingState() {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
   try {
+    if (
+      typeof window === 'undefined' ||
+      typeof window.localStorage === 'undefined' ||
+      window.localStorage === null
+    ) {
+      return null;
+    }
+
     const value = window.localStorage.getItem('memvo_onboarding_seen_v1');
     if (value === 'true') {
       return true;
@@ -24,7 +28,7 @@ function readInitialOnboardingState() {
     return null;
   }
 
-  return false;
+  return null;
 }
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
@@ -71,7 +75,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (pathname !== '/' && routeDecision.target && routeDecision.target !== pathname) {
+    if (routeDecision.target && routeDecision.target !== pathname) {
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
         window.location.replace(routeDecision.target);
       } else {

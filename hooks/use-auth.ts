@@ -26,7 +26,7 @@ type AuthListener = (snapshot: AuthSnapshot) => void;
 const authListeners = new Set<AuthListener>();
 let authSnapshot: AuthSnapshot = {
   user: null,
-  loading: false,
+  loading: true,
   error: null,
 };
 let authBootstrapPromise: Promise<void> | null = null;

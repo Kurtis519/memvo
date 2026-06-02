@@ -190,3 +190,14 @@
 =======
 - [x] Resume the Android preview build for the validated authenticated-entry routing fix now that Expo build capacity is available
 >>>>>>> Stashed changes
+- [x] Guard `readInitialOnboardingState` in `components/auth-gate.tsx` so Android startup never touches a missing `window.localStorage`
+- [x] Return `null` instead of `false` when onboarding state cannot be read in the auth gate startup path
+- [x] Validate the auth-gate startup fix with TypeScript and targeted routing tests
+- [x] Rebuild the Android preview APK after the auth-gate startup crash fix and return the verified direct download link
+- [x] Guard `readInitialOnboardingState` in `components/auth-gate.tsx` against missing `window.localStorage` on Android and return `null` when the value cannot be read
+- [x] Remove the `pathname !== '/'` redirect gate in `components/auth-gate.tsx` so authenticated redirects still fire from the root route
+- [x] Change the initial auth snapshot in `hooks/use-auth.ts` to `loading: true` to avoid startup flashes to login before session hydration
+- [x] Remove direct post-login `router.replace` navigation from `app/login.tsx` so AuthGate owns auth-driven routing
+- [x] Add startup logging for `isSupabaseConfigured` in `app/login.tsx` before the Supabase config guard
+- [x] Validate the combined six-bug auth fix with TypeScript and targeted auth-flow tests
+- [x] Rebuild the Android preview APK after the combined six-bug auth fix and return the verified direct download link

@@ -1,3 +1,4 @@
+===== FILE: app/login.tsx =====
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -50,8 +51,6 @@ export default function LoginScreen() {
   }, [configStatus.hasNativeClientIds, configStatus.missingNativeClientIds]);
 
   const handleSignIn = async () => {
-    console.log('Memvo login isSupabaseConfigured:', isSupabaseConfigured);
-
     if (!isSupabaseConfigured) {
       setAuthError('Supabase is not configured correctly in this build. Reload after the public auth settings finish syncing.');
       return;
@@ -79,6 +78,8 @@ export default function LoginScreen() {
       if (!data.session) {
         throw new Error('Sign-in completed without a session. Please try again.');
       }
+
+      router.replace('/(tabs)' as Parameters<typeof router.replace>[0]);
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : 'Sign-in failed. Please try again.');
     } finally {
@@ -487,3 +488,423 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+
+===== FILE: hooks/use-auth.ts =====
+import { useCallback, useEffect, useMemo, useState } from 'react';
+
+import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+
+type UseAuthOptions = {
+  autoFetch?: boolean;
+};
+
+type AuthUser = {
+  id: string;
+  openId: string;
+  name: string | null;
+  email: string | null;
+  loginMethod: string | null;
+  lastSignedIn: Date;
+};
+
+type AuthSnapshot = {
+  user: AuthUser | null;
+  loading: boolean;
+  error: Error | null;
+};
+
+type AuthListener = (snapshot: AuthSnapshot) => void;
+
+const authListeners = new Set<AuthListener>();
+let authSnapshot: AuthSnapshot = {
+  user: null,
+  loading: false,
+  error: null,
+};
+let authBootstrapPromise: Promise<void> | null = null;
+let authStateSubscription: { unsubscribe: () => void } | null = null;
+
+function mapSupabaseUser(authUser: {
+  id: string;
+  email?: string | null;
+  created_at?: string;
+  last_sign_in_at?: string | null;
+  identities?: Array<{ provider?: string | null }>;
+  user_metadata?: Record<string, unknown>;
+  app_metadata?: Record<string, unknown>;
+} | null): AuthUser | null {
+  if (!authUser) {
+    return null;
+  }
+
+  const metadata = authUser.user_metadata ?? {};
+  const appMetadata = authUser.app_metadata ?? {};
+  const identity = authUser.identities?.[0];
+
+  return {
+    id: authUser.id,
+    openId: authUser.id,
+    name:
+      (typeof metadata.full_name === 'string' ? metadata.full_name : undefined) ??
+      (typeof metadata.name === 'string' ? metadata.name : undefined) ??
+      null,
+    email: authUser.email ?? null,
+    loginMethod:
+      (typeof identity?.provider === 'string' ? identity.provider : undefined) ??
+      (typeof appMetadata.provider === 'string' ? appMetadata.provider : undefined) ??
+      null,
+    lastSignedIn: new Date(authUser.last_sign_in_at ?? authUser.created_at ?? Date.now()),
+  };
+}
+
+function emitAuthSnapshot(partial?: Partial<AuthSnapshot>) {
+  authSnapshot = {
+    ...authSnapshot,
+    ...partial,
+  };
+
+  for (const listener of authListeners) {
+    listener(authSnapshot);
+  }
+}
+
+async function refreshSharedAuthState() {
+  try {
+    emitAuthSnapshot({ loading: true, error: null });
+
+    if (!isSupabaseConfigured) {
+      emitAuthSnapshot({ user: null, loading: false, error: null });
+      return;
+    }
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError) {
+      throw sessionError;
+    }
+
+    emitAuthSnapshot({
+      user: mapSupabaseUser(session?.user ?? null),
+      loading: false,
+      error: null,
+    });
+  } catch (error) {
+    emitAuthSnapshot({
+      user: null,
+      loading: false,
+      error: error instanceof Error ? error : new Error('Failed to fetch user'),
+    });
+  }
+}
+
+function ensureSharedBootstrap() {
+  if (!authBootstrapPromise) {
+    authBootstrapPromise = refreshSharedAuthState().finally(() => {
+      authBootstrapPromise = null;
+    });
+  }
+
+  if (!authStateSubscription && isSupabaseConfigured) {
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      emitAuthSnapshot({
+        user: mapSupabaseUser(session?.user ?? null),
+        loading: false,
+        error: null,
+      });
+    });
+
+    authStateSubscription = data.subscription;
+  }
+
+  return authBootstrapPromise ?? Promise.resolve();
+}
+
+function subscribeToAuth(listener: AuthListener) {
+  authListeners.add(listener);
+  listener(authSnapshot);
+
+  return () => {
+    authListeners.delete(listener);
+  };
+}
+
+export function useAuth(options?: UseAuthOptions) {
+  const { autoFetch = true } = options ?? {};
+  const [state, setState] = useState<AuthSnapshot>(authSnapshot);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToAuth(setState);
+
+    if (autoFetch) {
+      void ensureSharedBootstrap();
+    } else {
+      emitAuthSnapshot({ loading: false });
+    }
+
+    return unsubscribe;
+  }, [autoFetch]);
+
+  const refresh = useCallback(async () => {
+    await refreshSharedAuthState();
+  }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      emitAuthSnapshot({ loading: true, error: null });
+
+      if (isSupabaseConfigured) {
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+          throw error;
+        }
+      }
+
+      emitAuthSnapshot({ user: null, loading: false, error: null });
+    } catch (error) {
+      const nextError = error instanceof Error ? error : new Error('Failed to sign out');
+      emitAuthSnapshot({ user: null, loading: false, error: nextError });
+      throw nextError;
+    }
+  }, []);
+
+  const isAuthenticated = useMemo(() => Boolean(state.user), [state.user]);
+
+  return {
+    user: state.user,
+    loading: state.loading,
+    error: state.error,
+    isAuthenticated,
+    refresh,
+    logout,
+  };
+}
+
+
+===== FILE: lib/memvo-auth-routing.ts =====
+export type AuthRouteDecision = {
+  ready: boolean;
+  target: string | null;
+};
+
+export type EntryRouteContext = {
+  isAuthenticated: boolean;
+  hasSeenOnboarding: boolean | null;
+};
+
+function matchesRoute(pathname: string, route: string) {
+  return pathname === route || pathname.startsWith(`${route}/`);
+}
+
+function isPublicUtilityRoute(pathname: string) {
+  return matchesRoute(pathname, '/join') || matchesRoute(pathname, '/oauth/callback');
+}
+
+function isSignedOutRoute(pathname: string) {
+  return matchesRoute(pathname, '/onboarding') || matchesRoute(pathname, '/signup') || matchesRoute(pathname, '/login');
+}
+
+export function getEntryTarget({ isAuthenticated, hasSeenOnboarding }: EntryRouteContext) {
+  if (hasSeenOnboarding === null) {
+    return null;
+  }
+
+  return isAuthenticated ? '/(tabs)' : hasSeenOnboarding ? '/login' : '/onboarding';
+}
+
+export function resolveAuthGateTarget({
+  pathname,
+  isAuthenticated,
+  loading,
+  hasSeenOnboarding,
+}: {
+  pathname: string;
+  isAuthenticated: boolean;
+  loading: boolean;
+  hasSeenOnboarding: boolean | null;
+}): AuthRouteDecision {
+  if (loading || hasSeenOnboarding === null) {
+    return { ready: false, target: null };
+  }
+
+  if (isAuthenticated) {
+    return {
+      ready: true,
+      target: isSignedOutRoute(pathname) ? '/' : null,
+    };
+  }
+
+  if (isPublicUtilityRoute(pathname)) {
+    return { ready: true, target: null };
+  }
+
+  if (!hasSeenOnboarding) {
+    return {
+      ready: true,
+      target: matchesRoute(pathname, '/onboarding') || matchesRoute(pathname, '/signup') ? null : '/onboarding',
+    };
+  }
+
+  return {
+    ready: true,
+    target: matchesRoute(pathname, '/login') || matchesRoute(pathname, '/signup') ? null : '/login',
+  };
+}
+
+
+===== FILE: components/auth-gate.tsx =====
+import * as SplashScreen from 'expo-splash-screen';
+import { usePathname, useRootNavigationState, useRouter } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Platform, StyleSheet, Text, View } from 'react-native';
+
+import { useAuth } from '@/hooks/use-auth';
+import { readHasSeenOnboarding } from '@/lib/memvo-auth-flow';
+import { resolveAuthGateTarget } from '@/lib/memvo-auth-routing';
+
+function readInitialOnboardingState() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const value = window.localStorage.getItem('memvo_onboarding_seen_v1');
+    if (value === 'true') {
+      return true;
+    }
+    if (value === 'false') {
+      return false;
+    }
+  } catch (_error) {
+    return null;
+  }
+
+  return false;
+}
+
+export function AuthGate({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const rootNavigationState = useRootNavigationState();
+  const { isAuthenticated, loading } = useAuth();
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(() => readInitialOnboardingState());
+  const splashHiddenRef = useRef(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    readHasSeenOnboarding()
+      .then((value) => {
+        if (isMounted) {
+          setHasSeenOnboarding(value);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setHasSeenOnboarding(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const routeDecision = useMemo(
+    () =>
+      resolveAuthGateTarget({
+        pathname,
+        isAuthenticated,
+        loading,
+        hasSeenOnboarding,
+      }),
+    [hasSeenOnboarding, isAuthenticated, loading, pathname],
+  );
+
+  useEffect(() => {
+    if (!routeDecision.ready || !rootNavigationState?.key) {
+      return;
+    }
+
+    if (pathname !== '/' && routeDecision.target && routeDecision.target !== pathname) {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.location.replace(routeDecision.target);
+      } else {
+        router.replace(routeDecision.target as Parameters<typeof router.replace>[0]);
+      }
+      return;
+    }
+
+    if (!splashHiddenRef.current) {
+      splashHiddenRef.current = true;
+      void SplashScreen.hideAsync().catch(() => {
+        splashHiddenRef.current = true;
+      });
+    }
+  }, [pathname, rootNavigationState?.key, routeDecision, router]);
+
+  const shouldShowLoadingShell = pathname !== '/' && routeDecision.target !== null && routeDecision.target !== pathname;
+
+  return (
+    <>
+      {children}
+      {shouldShowLoadingShell ? (
+        <View style={styles.loadingOverlay}>
+          <View style={styles.loadingCard}>
+            <Text style={styles.loadingEyebrow}>Memvo</Text>
+            <Text style={styles.loadingTitle}>Loading your workspace</Text>
+            <Text style={styles.loadingBody}>
+              We are checking onboarding and account state so you land on the right screen without a flash.
+            </Text>
+          </View>
+        </View>
+      ) : null}
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 32,
+  },
+  loadingCard: {
+    width: '100%',
+    maxWidth: 384,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 24,
+    paddingVertical: 32,
+  },
+  loadingEyebrow: {
+    color: '#0F6E56',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 3.3,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+  },
+  loadingTitle: {
+    marginTop: 16,
+    color: '#1A1A1A',
+    fontSize: 28,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  loadingBody: {
+    marginTop: 12,
+    color: '#555555',
+    fontSize: 14,
+    lineHeight: 24,
+    textAlign: 'center',
+  },
+});
+
