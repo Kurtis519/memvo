@@ -9,10 +9,7 @@ import { resolveAuthGateTarget } from '@/lib/memvo-auth-routing';
 
 function readInitialOnboardingState() {
   try {
-<<<<<<< Updated upstream
-=======
     // On Android, window exists but localStorage does not — must check both
->>>>>>> Stashed changes
     if (
       typeof window === 'undefined' ||
       typeof window.localStorage === 'undefined' ||
@@ -32,10 +29,7 @@ function readInitialOnboardingState() {
     return null;
   }
 
-<<<<<<< Updated upstream
-=======
   // Return null not false — null means unknown, false means definitely not seen
->>>>>>> Stashed changes
   return null;
 }
 

@@ -83,14 +83,11 @@ export default function LoginScreen() {
       if (!data.session) {
         throw new Error('Sign-in completed without a session. Please try again.');
       }
-<<<<<<< Updated upstream
-=======
 
       // Explicitly navigate to home feed after successful sign-in
       // The AuthGate will also handle this via auth state change,
       // but we navigate directly here to avoid any timing issues on Android
       router.replace('/(tabs)' as Parameters<typeof router.replace>[0]);
->>>>>>> Stashed changes
     } catch (error) {
       setAuthError(
         error instanceof Error ? error.message : 'Sign-in failed. Please try again.',
