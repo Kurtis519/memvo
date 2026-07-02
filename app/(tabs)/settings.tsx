@@ -113,6 +113,21 @@ function formatStorageSize(bytes: number) {
 
 function formatVersion() {
   const version = Constants.expoConfig?.version ?? '1.0.0';
+  const buildId = process.env.EAS_BUILD_ID;
+  const commitHash = process.env.EAS_BUILD_GIT_COMMIT_HASH;
+
+  const short = commitHash ? commitHash.slice(0, 7) : null;
+  const shortBuildId = buildId ? buildId.slice(0, 8) : null;
+
+  if (short && shortBuildId) {
+    return `Version ${version} · Build ${shortBuildId} · Commit ${short}`;
+  }
+  if (short) {
+    return `Version ${version} · Commit ${short}`;
+  }
+  if (shortBuildId) {
+    return `Version ${version} · Build ${shortBuildId}`;
+  }
   return `Version ${version}`;
 }
 
@@ -617,7 +632,7 @@ export default function SettingsScreen() {
             />
             <Row
               label="Privacy policy"
-              helper="Open Memvo’s privacy policy in an in-app browser"
+              helper="Open Memvo's privacy policy in an in-app browser"
               onPress={handleOpenPrivacyPolicy}
             />
             <Row
@@ -681,7 +696,15 @@ export default function SettingsScreen() {
               helper="Open an in-app review prompt on supported devices"
               onPress={handleRateMemvo}
             />
-            <Row label="App version" value={versionLabel} helper="Build information for debugging and support" />
+            <Row
+              label="App version"
+              value={versionLabel}
+              helper="Tap to copy build info to clipboard"
+              onPress={() => {
+                void import('expo-clipboard').then(({ setStringAsync }) => setStringAsync(versionLabel));
+                Alert.alert('Copied', 'Build info copied to clipboard.');
+              }}
+            />
           </Section>
 
           {userProfile?.isAdmin ? (
