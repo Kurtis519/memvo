@@ -82,6 +82,6 @@ describe('Memvo auth entry routing', () => {
         loading: false,
         hasSeenOnboarding: true,
       }),
-    ).toEqual({ ready: true, target: '/' });
+    ).toEqual({ ready: true, target: '/(tabs)' });
   });
 });
